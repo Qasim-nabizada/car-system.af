@@ -1,0 +1,112 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  role      String
+  name      String
+  createdAt DateTime @default(now())
+
+  purchaseContainers PurchaseContainer[]
+  uaeSales           UAESale[]
+  uaeExpends         UAEExpend[]
+
+  sentTransfers     Transfer[] @relation("SentTransfers")
+  receivedTransfers Transfer[] @relation("ReceivedTransfers")
+
+  @@map("users")
+}
+
+model PurchaseContainer {
+  id          String            @id @default(cuid())
+  containerId String
+  status      String
+  city        String
+  date        String
+  rent        Float
+  grandTotal  Float
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contents    PurchaseContent[]
+  uaeSales    UAESale[]
+  uaeExpends  UAEExpend[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  Transfer    Transfer[]
+
+  @@map("purchase_containers")
+}
+
+model PurchaseContent {
+  id          String            @id @default(cuid())
+  number      Int
+  item        String
+  model       String
+  lotNumber   String
+  price       Float
+  recovery    Float
+  cutting     Float
+  total       Float
+  containerId String
+  container   PurchaseContainer @relation(fields: [containerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime          @default(now())
+
+  @@map("purchase_contents")
+}
+
+model UAESale {
+  id          String            @id @default(cuid())
+  number      Int
+  item        String
+  salePrice   Float
+  lotNumber   String
+  note        String
+  containerId String
+  container   PurchaseContainer @relation(fields: [containerId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime          @default(now())
+
+  @@map("uae_sales")
+}
+
+model UAEExpend {
+  id          String            @id @default(cuid())
+  category    String
+  amount      Float
+  description String
+  containerId String
+  container   PurchaseContainer @relation(fields: [containerId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime          @default(now())
+
+  @@map("uae_expends")
+}
+
+model Transfer {
+  id          String            @id @default(cuid())
+  senderId    String
+  sender      User              @relation("SentTransfers", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId  String
+  receiver    User              @relation("ReceivedTransfers", fields: [receiverId], references: [id], onDelete: Cascade)
+  amount      Float
+  containerId String
+  container   PurchaseContainer @relation(fields: [containerId], references: [id], onDelete: Cascade)
+  type        String // Bank or Hand
+  date        String
+  description String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@map("transfers")
+}
