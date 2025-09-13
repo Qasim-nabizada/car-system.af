@@ -1,12 +1,17 @@
+const path = require("path");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  webpack: (config) => {
+    config.resolve.alias["@"] = path.resolve(__dirname, "src");
+    return config;
+  },
   typescript: {
-    ignoreBuildErrors: true, // نادیده گرفتن خطاهای TypeScript در build
+    ignoreBuildErrors: true,
   },
   eslint: {
-    ignoreDuringBuilds: true, // نادیده گرفتن خطاهای ESLint در build
+    ignoreDuringBuilds: true,
   },
 };
 
-export default nextConfig;
-
+module.exports = nextConfig;

@@ -3,10 +3,24 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/database';
 
+// تعریف نوع Container با توجه به داده‌های Prisma
+type Container = {
+  containerId: string;
+  status: string;
+  user?: {
+    id: string;
+    username: string;
+    name: string;
+  } | null;
+  uaeSales?: any[];    // در صورت امکان نوع دقیق‌تری بدهید
+  uaeExpends?: any[];
+  contents?: any[];
+};
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -14,40 +28,26 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const all = searchParams.get('all');
 
-    console.log('👤 Session user role:', session.user.role);
-    console.log('🔍 All parameter:', all);
-    console.log('🔍 User ID:', session.user.id);
-
     let whereCondition = {};
-    
-    // Check if all parameter is 'true' and user is manager
     if (all === 'true' && session.user.role === 'manager') {
       whereCondition = {};
-      console.log('📋 Loading ALL containers for manager');
     } else {
       whereCondition = { userId: session.user.id };
-      console.log('📋 Loading user-specific containers for user:', session.user.id);
     }
 
     const containers = await prisma.purchaseContainer.findMany({
       where: whereCondition,
-      include: { 
+      include: {
         contents: true,
-        user: {
-          select: {
-            id: true,
-            username: true,
-            name: true
-          }
-        },
-        uaeSales: true, // Include UAE sales data
-        uaeExpends: true // Include UAE expenses data
+        user: { select: { id: true, username: true, name: true } },
+        uaeSales: true,
+        uaeExpends: true
       },
       orderBy: { createdAt: 'desc' }
     });
 
     console.log('✅ Found containers:', containers.length);
-    containers.forEach(container => {
+    containers.forEach((container: Container) => {
       console.log(`📦 Container: ${container.containerId}, User: ${container.user?.name || 'Unknown'}, Status: ${container.status}`);
       console.log(`   UAE Sales: ${container.uaeSales?.length || 0} items`);
       console.log(`   UAE Expenses: ${container.uaeExpends?.length || 0} items`);
@@ -57,17 +57,14 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('❌ Error fetching containers:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json(
-      { error: 'Internal server error', details: message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error', details: message }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -75,7 +72,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { containerId, status, city, date, rent, grandTotal, contents } = body;
 
-    // Create new container
     const newContainer = await prisma.purchaseContainer.create({
       data: {
         containerId,
@@ -100,13 +96,7 @@ export async function POST(request: NextRequest) {
       },
       include: {
         contents: true,
-        user: {
-          select: {
-            id: true,
-            username: true,
-            name: true
-          }
-        },
+        user: { select: { id: true, username: true, name: true } },
         uaeSales: true,
         uaeExpends: true
       }
@@ -114,10 +104,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(newContainer);
   } catch (error) {
-    console.error('Error creating container:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('❌ Error creating container:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: 'Internal server error', details: message }, { status: 500 });
   }
 }
