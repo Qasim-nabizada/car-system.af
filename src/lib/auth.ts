@@ -1,30 +1,28 @@
-// lib/auth.ts
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import prisma from "@/lib/database";
 import bcrypt from "bcrypt";
 
-
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
-  
+
   debug: process.env.NODE_ENV === "development",
 
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60,
+    maxAge: 30 * 24 * 60 * 60, // 30 روز
   },
 
   providers: [
     CredentialsProvider({
-      name: "credentials",
+      name: "Credentials",
       credentials: {
         username: { label: "Username", type: "text" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials) return null;
+        if (!credentials?.username || !credentials?.password) return null;
 
         try {
           const user = await prisma.user.findUnique({
@@ -40,7 +38,7 @@ export const authOptions: NextAuthOptions = {
             id: user.id,
             username: user.username,
             role: user.role,
-            name: user.name
+            name: user.name,
           };
         } catch (error) {
           console.error("Auth error:", error);
@@ -53,9 +51,9 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = user.role;
-        token.username = user.username;
-        token.id = user.id;
+        token.id = (user as any).id;
+        token.username = (user as any).username;
+        token.role = (user as any).role;
       }
       return token;
     },

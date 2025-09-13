@@ -2,6 +2,7 @@
   "name": "car-system",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "engines": {
     "node": "20.x"
   },
@@ -25,7 +26,10 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-is": "^19.1.1",
-    "recharts": "^3.1.2"
+    "recharts": "^3.1.2",
+    "tailwindcss": "^3.4.17",
+    "postcss": "^8.5.6",
+    "autoprefixer": "^10.4.21"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.0.0",
@@ -33,12 +37,9 @@
     "@types/node": "^20.0.0",
     "@types/react": "^18.0.37",
     "@types/react-dom": "^18.0.11",
-    "autoprefixer": "^10.4.21",
-    "eslint": "^9.0.0",
-    "eslint-config-next": "^14.1.1",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.17",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^14.1.1"
   }
 }
