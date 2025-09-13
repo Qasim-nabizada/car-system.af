@@ -6,7 +6,6 @@ const nextConfig = {
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
       "@": path.resolve(process.cwd(), "src"),
-      "bcrypt": "bcryptjs"
     };
     return config;
   },
