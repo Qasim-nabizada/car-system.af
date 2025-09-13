@@ -17,7 +17,6 @@
     "@prisma/client": "^6.16.1",
     "@types/pg": "^8.15.5",
     "autoprefixer": "^10.4.21",
-    "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "dotenv": "^16.4.5",
     "next": "^14.2.32",
@@ -33,7 +32,6 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.0.0",
-    "@types/bcrypt": "^6.0.0",
     "@types/node": "^20.19.14",
     "@types/react": "^18.3.24",
     "@types/react-dom": "^18.3.7",
