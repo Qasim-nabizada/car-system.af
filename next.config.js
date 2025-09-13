@@ -1,9 +1,9 @@
-const path = require("path");
+import path from "path";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   webpack: (config) => {
-    config.resolve.alias["@"] = path.resolve(__dirname, "src");
+    config.resolve.alias["@"] = path.resolve(process.cwd(), "src");
     return config;
   },
   typescript: {
@@ -14,4 +14,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;
