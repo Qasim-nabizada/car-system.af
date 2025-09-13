@@ -3,7 +3,10 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/database';
 
-export async function DELETE(request: NextRequest) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> } // ✅ اضافه کردن Promise
+) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -11,15 +14,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // گرفتن ID از URL
-    const contentId = request.nextUrl.pathname.split('/').pop();
-
-    if (!contentId) {
-      return NextResponse.json({ error: 'Missing content ID' }, { status: 400 });
-    }
+    const { id } = await params; // ✅ await اضافه کنید
 
     const content = await prisma.purchaseContent.findUnique({
-      where: { id: contentId },
+      where: { id },
       include: { container: true }
     });
 
@@ -32,7 +30,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     await prisma.purchaseContent.delete({
-      where: { id: contentId }
+      where: { id }
     });
 
     return NextResponse.json({ message: 'Content item deleted successfully' });
