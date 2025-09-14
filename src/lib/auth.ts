@@ -4,8 +4,6 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import prisma from "@/lib/database";
 import bcrypt from "bcrypt";
 
-
-
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
 
@@ -24,26 +22,38 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.username || !credentials?.password) return null;
+        if (!credentials?.username || !credentials?.password) {
+          console.error("❌ Missing username or password");
+          return null;
+        }
 
         try {
           const user = await prisma.user.findUnique({
             where: { username: credentials.username },
           });
 
-          if (!user) return null;
+          if (!user) {
+            console.error("❌ User not found:", credentials.username);
+            return null;
+          }
 
           const isValid = await bcrypt.compare(credentials.password, user.password);
-          if (!isValid) return null;
 
+          if (!isValid) {
+            console.error("❌ Invalid password for user:", credentials.username);
+            return null;
+          }
+
+          // کاربر معتبر
           return {
             id: user.id,
             username: user.username,
             role: user.role,
             name: user.name,
+          
           };
         } catch (error) {
-          console.error("Auth error:", error);
+          console.error("❌ Auth error:", error);
           return null;
         }
       },
