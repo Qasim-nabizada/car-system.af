@@ -241,21 +241,24 @@ export default function ReportsPage() {
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie
-                      data={userReports}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="totalProfitAED"
-                      nameKey="userName"
-                      label={({ userName, totalProfitAED }) => 
-                        `${userName}: ${formatAED(totalProfitAED)}`}
-                    >
-                      {userReports.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
+           <Pie
+  data={userReports}
+  cx="50%"
+  cy="50%"
+  outerRadius={80}
+  fill="#8884d8"
+  dataKey="totalProfitAED"
+  nameKey="userName"
+  label={(props: any) => {
+    const { payload } = props;
+    return `${payload.userName}: ${formatAED(payload.totalProfitAED)}`;
+  }}
+>
+  {userReports.map((entry, index) => (
+    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+  ))}
+</Pie>
+
                     <Tooltip formatter={(value) => formatAED(Number(value))} />
                   </PieChart>
                 </ResponsiveContainer>
