@@ -6,6 +6,13 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // این خط اضافه شود - راه حل اول
+  onWarning: (warning) => {
+    if (warning.message.includes('TypeScript') || warning.message.includes('typescript')) {
+      return;
+    }
+    console.warn(warning.message);
+  },
 };
 
 export default nextConfig;
