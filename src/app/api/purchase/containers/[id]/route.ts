@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
-import prisma from '@/lib/database';
+import { authOptions } from '../../../../../lib/auth';
+import prisma from '../../../../../lib/database';
 
 export async function DELETE(
   request: NextRequest,

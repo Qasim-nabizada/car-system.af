@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
-import prisma from '@/lib/database';
+// این فایل احتمالاً 3 نقطه نیاز دارد:
+import { authOptions } from '../../../../lib/auth';
+import prisma from '../../../../lib/database';
 
 export async function GET(request: NextRequest) {
   try {
