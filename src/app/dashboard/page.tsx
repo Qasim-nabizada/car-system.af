@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
-import prisma from "@/lib/database";
+import { authOptions } from '../../lib/auth';
+import prisma from '../../lib/database';
 import Link from "next/link";
 
 export default async function Dashboard() {
