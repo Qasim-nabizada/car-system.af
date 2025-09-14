@@ -14,10 +14,10 @@ const nextConfig = {
     return config;
   },
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: true,  // این خط اضافه شود
   },
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: true,  // این خط اضافه شود
   },
 };
 
