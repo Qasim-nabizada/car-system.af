@@ -17,10 +17,10 @@ interface ContentData {
   item: string;
   model: string;
   lotNumber: string;
-  price: number;
-  recovery: number;
-  cutting: number;
-  total: number;
+  price: number | '';
+  recovery: number | '';
+  cutting: number | '';
+  total: number | '';
 }
 
 interface ContainerWithContents extends ContainerData {
@@ -128,7 +128,7 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
   });
   
   const [currentContents, setCurrentContents] = useState<ContentData[]>([]);
-  const [rent, setRent] = useState<number>(0);
+  const [rent, setRent] = useState<number | ''>('');
   const [loading, setLoading] = useState(false);
 
   const [showTransfersModal, setShowTransfersModal] = useState(false);
@@ -141,8 +141,13 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
   const [editMode, setEditMode] = useState(false);
 
   const calculateGrandTotal = () => {
-    const contentsTotal = currentContents.reduce((sum, item) => sum + item.total, 0);
-    return contentsTotal + rent;
+    const contentsTotal = currentContents.reduce((sum, item) => {
+      const itemTotal = typeof item.total === 'number' ? item.total : 0;
+      return sum + itemTotal;
+    }, 0);
+    
+    const rentValue = typeof rent === 'number' ? rent : 0;
+    return contentsTotal + rentValue;
   };
 
   const handleContainerSubmit = (e: React.FormEvent) => {
@@ -156,10 +161,10 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
       item: '',
       model: '',
       lotNumber: '',
-      price: 0,
-      recovery: 0,
-      cutting: 0,
-      total: 0
+      price: '',
+      recovery: '',
+      cutting: '',
+      total: ''
     };
     
     setCurrentContents(prevContents => [...prevContents, newItem]);
@@ -169,20 +174,25 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
     setCurrentContents(prevContents => {
       const updatedContents = [...prevContents];
       
-      const numericValue = ['number', 'price', 'recovery', 'cutting', 'total'].includes(field) 
-        ? Number(value) 
-        : value;
-      
-      updatedContents[index] = {
-        ...updatedContents[index],
-        [field]: numericValue
-      };
+      if (['number', 'price', 'recovery', 'cutting', 'total'].includes(field)) {
+        const numericValue = value === '' ? '' : Number(value);
+        updatedContents[index] = {
+          ...updatedContents[index],
+          [field]: numericValue
+        };
+      } else {
+        updatedContents[index] = {
+          ...updatedContents[index],
+          [field]: value
+        };
+      }
       
       if (['price', 'recovery', 'cutting'].includes(field)) {
-        updatedContents[index].total = 
-          Number(updatedContents[index].price) + 
-          Number(updatedContents[index].recovery) + 
-          Number(updatedContents[index].cutting);
+        const price = typeof updatedContents[index].price === 'number' ? updatedContents[index].price : 0;
+        const recovery = typeof updatedContents[index].recovery === 'number' ? updatedContents[index].recovery : 0;
+        const cutting = typeof updatedContents[index].cutting === 'number' ? updatedContents[index].cutting : 0;
+        
+        updatedContents[index].total = price + recovery + cutting;
       }
       
       return updatedContents;
@@ -210,10 +220,30 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
     }
   };
 
+  const prepareDataForSave = () => {
+    const contentsWithNumbers = currentContents.map(item => ({
+      ...item,
+      price: typeof item.price === 'number' ? item.price : 0,
+      recovery: typeof item.recovery === 'number' ? item.recovery : 0,
+      cutting: typeof item.cutting === 'number' ? item.cutting : 0,
+      total: typeof item.total === 'number' ? item.total : 0,
+      number: typeof item.number === 'number' ? item.number : 0
+    }));
+
+    const rentValue = typeof rent === 'number' ? rent : 0;
+    const grandTotal = calculateGrandTotal();
+
+    return {
+      contents: contentsWithNumbers,
+      rent: rentValue,
+      grandTotal
+    };
+  };
+
   const saveContents = async () => {
     try {
       setLoading(true);
-      const grandTotal = calculateGrandTotal();
+      const { contents, rent: rentValue, grandTotal } = prepareDataForSave();
       
       const response = await fetch('/api/purchase/containers', {
         method: 'POST',
@@ -225,9 +255,9 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
           status: currentContainer.status,
           city: currentContainer.city,
           date: currentContainer.date,
-          rent: rent,
+          rent: rentValue,
           grandTotal: grandTotal,
-          contents: currentContents
+          contents: contents
         })
       });
       
@@ -236,7 +266,7 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
         setContainers(prev => [newContainer, ...prev]);
         
         setCurrentContents([]);
-        setRent(0);
+        setRent('');
         
         alert('Contents saved successfully! Container is ready for more contents.');
       } else {
@@ -326,65 +356,84 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
       city: container.city,
       date: container.date
     });
-    setCurrentContents([...container.contents]);
-    setRent(container.rent);
+    
+    const contentsWithEmptyStrings = container.contents.map(item => ({
+      ...item,
+      price: item.price === 0 ? '' : item.price,
+      recovery: item.recovery === 0 ? '' : item.recovery,
+      cutting: item.cutting === 0 ? '' : item.cutting,
+      total: item.total === 0 ? '' : item.total
+    }));
+    
+    setCurrentContents(contentsWithEmptyStrings);
+    setRent(container.rent === 0 ? '' : container.rent);
     setEditMode(true);
     setStep('contents');
   };
 
-  const updateContainer = async () => {
-    if (!editingContainer) return;
+ const updateContainer = async () => {
+  if (!editingContainer) return;
 
-    try {
-      setLoading(true);
-      const grandTotal = calculateGrandTotal();
+  try {
+    setLoading(true);
+    const { contents, rent: rentValue, grandTotal } = prepareDataForSave();
+    
+    // اطمینان از اینکه همه مقادیر عددی هستند
+    const processedContents = contents.map(item => ({
+      ...item,
+      price: Number(item.price) || 0,
+      recovery: Number(item.recovery) || 0,
+      cutting: Number(item.cutting) || 0,
+      total: Number(item.total) || 0,
+      number: Number(item.number) || 0
+    }));
+
+    const response = await fetch(`/api/purchase/containers/${editingContainer.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        containerId: currentContainer.containerId,
+        status: currentContainer.status,
+        city: currentContainer.city,
+        date: currentContainer.date,
+        rent: Number(rentValue) || 0,
+        grandTotal: Number(grandTotal) || 0,
+        contents: processedContents
+      })
+    });
+    
+    if (response.ok) {
+      const updatedContainer = await response.json();
       
-      const response = await fetch(`/api/purchase/containers/${editingContainer.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          containerId: currentContainer.containerId,
-          status: currentContainer.status,
-          city: currentContainer.city,
-          date: currentContainer.date,
-          rent: rent,
-          grandTotal: grandTotal,
-          contents: currentContents
-        })
-      });
+      setContainers(prev => prev.map(container => 
+        container.id === editingContainer.id ? updatedContainer : container
+      ));
       
-      if (response.ok) {
-        const updatedContainer = await response.json();
-        
-        setContainers(prev => prev.map(container => 
-          container.id === editingContainer.id ? updatedContainer : container
-        ));
-        
-        setSearchResults(prev => prev.map(container => 
-          container.id === editingContainer.id ? updatedContainer : container
-        ));
-        
-        setEditingContainer(null);
-        setEditMode(false);
-        setCurrentContents([]);
-        setRent(0);
-        setStep('container');
-        
-        alert('Container updated successfully!');
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        alert(`Error updating container: ${errorData.error || response.statusText}`);
-      }
-    } catch (error) {
-      console.error('Error updating container:', error);
-      alert('Error updating container. Check console for details.');
-    } finally {
-      setLoading(false);
+      setSearchResults(prev => prev.map(container => 
+        container.id === editingContainer.id ? updatedContainer : container
+      ));
+      
+      setEditingContainer(null);
+      setEditMode(false);
+      setCurrentContents([]);
+      setRent('');
+      setStep('container');
+      
+      alert('Container updated successfully!');
+    } else {
+      const errorText = await response.text();
+      console.error('Server response:', errorText);
+      alert(`Error updating container: ${response.status} ${response.statusText}`);
     }
-  };
-
+  } catch (error) {
+    console.error('Error updating container:', error);
+    alert('Error updating container. Check console for details.');
+  } finally {
+    setLoading(false);
+  }
+};
   useEffect(() => {
     const loadContainers = async () => {
       try {
@@ -447,8 +496,9 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
           <input
             type="number"
             value={item.price}
-            onChange={(e) => updateContentItem(index, 'price', Number(e.target.value))}
+            onChange={(e) => updateContentItem(index, 'price', e.target.value === '' ? '' : Number(e.target.value))}
             className="w-full p-3 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+            placeholder="Enter price"
           />
         </div>
         <div>
@@ -456,8 +506,9 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
           <input
             type="number"
             value={item.recovery}
-            onChange={(e) => updateContentItem(index, 'recovery', Number(e.target.value))}
+            onChange={(e) => updateContentItem(index, 'recovery', e.target.value === '' ? '' : Number(e.target.value))}
             className="w-full p-3 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+            placeholder="Enter recovery"
           />
         </div>
         <div>
@@ -465,8 +516,9 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
           <input
             type="number"
             value={item.cutting}
-            onChange={(e) => updateContentItem(index, 'cutting', Number(e.target.value))}
+            onChange={(e) => updateContentItem(index, 'cutting', e.target.value === '' ? '' : Number(e.target.value))}
             className="w-full p-3 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+            placeholder="Enter cutting"
           />
         </div>
         <div>
@@ -483,7 +535,7 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-900 to-green-800 text-white flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-green-700 to-green-600 text-white flex flex-col">
       <Navbar />
       
       <div className="flex-grow pt-24 pb-8 px-6">
@@ -610,8 +662,11 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
                   ${calculateGrandTotal().toLocaleString()}
                 </p>
                 <p className="text-sm text-center text-green-300">
-                  (Contents: ${currentContents.reduce((sum, item) => sum + item.total, 0).toLocaleString()} 
-                  + Rent: ${rent.toLocaleString()})
+                  (Contents: ${currentContents.reduce((sum, item) => {
+                    const itemTotal = typeof item.total === 'number' ? item.total : 0;
+                    return sum + itemTotal;
+                  }, 0).toLocaleString()} 
+                  + Rent: ${typeof rent === 'number' ? rent.toLocaleString() : '0'})
                 </p>
               </div>
               
@@ -632,8 +687,9 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
                   <input
                     type="number"
                     value={rent}
-                    onChange={(e) => setRent(Number(e.target.value))}
+                    onChange={(e) => setRent(e.target.value === '' ? '' : Number(e.target.value))}
                     className="w-full p-3 rounded-lg bg-green-700 text-white border border-green-600 focus:outline-none focus:border-green-400 focus:ring-2 focus:ring-green-500"
+                    placeholder="Enter rent"
                   />
                 </div>
                 
@@ -657,7 +713,7 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
                         date: new Date().toISOString().split('T')[0]
                       });
                       setCurrentContents([]);
-                      setRent(0);
+                      setRent('');
                       setEditMode(false);
                       setEditingContainer(null);
                       setStep('container');
