@@ -375,28 +375,28 @@ export default function USAContainersManagement() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <div className="bg-green-50 p-6 rounded-xl border border-green-200">
-                  <h4 className="text-lg font-semibold text-green-900 mb-4">Container Information</h4>
+                <div className="bg-green-700 p-6 rounded-xl border border-green-200">
+                  <h4 className="text-lg font-semibold text- mb-4">Container Information</h4>
                   <div className="space-y-2">
-                    <p><span className="text-green-700 font-medium">User:</span> {selectedContainer.user ? selectedContainer.user.name : 'Unknown'}</p>
-                    <p><span className="text-green-700 font-medium">Status:</span> {selectedContainer.status}</p>
-                    <p><span className="text-green-700 font-medium">City:</span> {selectedContainer.city}</p>
-                    <p><span className="text-green-700 font-medium">Date:</span> {selectedContainer.date}</p>
-                    <p><span className="text-green-700 font-medium">Rent:</span> ${selectedContainer.rent}</p>
-                    <p><span className="text-green-700 font-medium">Grand Total:</span> ${selectedContainer.grandTotal}</p>
+                    <p><span className="text-white font-medium">User:</span> {selectedContainer.user ? selectedContainer.user.name : 'Unknown'}</p>
+                    <p><span className="text-white font-medium">Status:</span> {selectedContainer.status}</p>
+                    <p><span className="text-white font-medium">City:</span> {selectedContainer.city}</p>
+                    <p><span className="text-white font-medium">Date:</span> {selectedContainer.date}</p>
+                    <p><span className="text-white font-medium">Rent:</span> ${selectedContainer.rent}</p>
+                    <p><span className="text-white font-medium">Grand Total:</span> ${selectedContainer.grandTotal}</p>
                   </div>
                 </div>
 
-                <div className="bg-green-50 p-6 rounded-xl border border-green-200">
-                  <h4 className="text-lg font-semibold text-green-900 mb-4">Financial Summary</h4>
+                <div className="bg-green-700 p-6 rounded-xl border border-green-200">
+                  <h4 className="text-lg font-semibold text-white mb-4">Financial Summary</h4>
                   <div className="space-y-2">
-                    <p><span className="text-green-700 font-medium">Contents Total:</span> 
+                    <p><span className="text-white font-medium">Contents Total: </span> 
                       ${selectedContainer.contents.reduce((sum, item) => sum + item.total, 0).toLocaleString()}
                     </p>
-                    <p><span className="text-green-700 font-medium">Container Rent:</span> 
+                    <p><span className="text-white font-medium">Container Rent: </span> 
                       ${selectedContainer.rent.toLocaleString()}
                     </p>
-                    <p><span className="text-green-700 font-medium">Number of Items:</span> 
+                    <p><span className="text-white font-medium">Number of Items: </span> 
                       {selectedContainer.contents.length}
                     </p>
                   </div>

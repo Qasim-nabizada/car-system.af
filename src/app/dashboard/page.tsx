@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from '../../lib/auth';
 import prisma from '../../lib/database';
 import Link from "next/link";
+import Image from "next/image";
 
 export default async function Dashboard() {
   const session = await getServerSession(authOptions);
@@ -51,19 +52,32 @@ export default async function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* هدر اصلی با عرض کامل و بدون فاصله */}
       <div className="bg-gradient-to-r from-green-700 to-emerald-600 p-8 rounded-none shadow-lg">
-        <h1 className="text-4xl md:text-5xl font-bold text-white text-center mb-4">
-         Al Raya Used Auto Spare Trading LLC
-        </h1>
-        <p className="text-green-100 text-lg text-center">
-          Comprehensive management dashboard for USA purchases and UAE sales
-        </p>
+        <div className="flex items-center justify-between max-w-6xl mx-auto">
+          <div className="text-center flex-1">
+            <h1 className="text-4xl md:text-5xl font-bold text-white">
+              Al Raya Used Auto Spare Trading LLC
+            </h1>
+            <p className="text-green-100 text-lg mt-2">
+              Comprehensive management dashboard for USA purchases and UAE sales
+            </p>
+          </div>
+          <div className="ml-6">
+            <Image
+              src="/LLC.png"
+              alt="LLC Logo"
+              width={100}
+              height={60}
+              className="object-contain filter brightness-0 invert"
+            />
+          </div>
+        </div>
       </div>
 
       {/* محتویات اصلی با حداقل فاصله */}
-      <div className="p-4">
+      <div className="p-4 flex-grow">
         {/* کارت های آماری */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {/* کارت کل کانتینرها */}
@@ -191,14 +205,9 @@ export default async function Dashboard() {
         </div>
 
         {/* لینک‌های سریع */}
-        <div className="bg-white p-6 rounded-xl shadow border border-gray-200 mt-6">
+        <div className="bg-white p-6 rounded-xl shadow border border-gray-200 mt-4">
           <h3 className="text-xl font-semibold text-gray-800 mb-4">Quick Actions</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Link href="/usa/purchase" className="bg-green-600 hover:bg-green-700 text-white p-4 rounded-lg text-center transition duration-200">
-              <div className="font-semibold">➕ New Purchase</div>
-              <div className="text-sm mt-1">Create USA container</div>
-            </Link>
-            
             <Link href="/settings" className="bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg text-center transition duration-200">
               <div className="font-semibold">👥 User Management</div>
               <div className="text-sm mt-1">Manage users</div>
@@ -211,6 +220,16 @@ export default async function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* فوتر */}
+      <footer className="bg-black text-white py-4 px-6 mt-auto">
+        <div className="flex flex-col md:flex-row items-center justify-between max-w-6xl mx-auto">
+          <p className="text-center flex-1">All Rights Reserved © 2025 | Qasim Jamal</p>
+          <button className="bg-white text-black px-4 py-1 rounded hover:bg-gray-300 mt-2 md:mt-0">
+            Contact Us
+          </button>
+        </div>
+      </footer>
     </div>
   );
 }
