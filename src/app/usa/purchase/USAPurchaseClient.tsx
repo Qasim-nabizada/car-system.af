@@ -140,6 +140,10 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
   const [editingContainer, setEditingContainer] = useState<ContainerWithContents | null>(null);
   const [editMode, setEditMode] = useState(false);
 
+  // اضافه کردن state جدید برای پرینت
+  const [printContainer, setPrintContainer] = useState<ContainerWithContents | null>(null);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+
   const calculateGrandTotal = () => {
     const contentsTotal = currentContents.reduce((sum, item) => {
       const itemTotal = typeof item.total === 'number' ? item.total : 0;
@@ -220,7 +224,53 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
     }
   };
 
-  const prepareDataForSave = () => {
+  // تابع جدید برای نمایش مودال پرینت
+  const handlePrint = (container: ContainerWithContents) => {
+    setPrintContainer(container);
+    setShowPrintModal(true);
+  };
+
+  // تابع جدید برای پرینت گرفتن
+  const executePrint = () => {
+    const printContent = document.getElementById('print-content');
+    if (printContent) {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Print Container ${printContainer?.containerId}</title>
+              <style>
+                body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #000; }
+                .header { text-align: center; margin-bottom: 20px; }
+                .container-info { margin-bottom: 20px; }
+                .container-info table { width: 100%; border-collapse: collapse; }
+                .container-info td { padding: 8px; border: 1px solid #000; }
+                .contents-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                .contents-table th, .contents-table td { padding: 8px; border: 1px solid #000; text-align: center; }
+                .footer { margin-top: 30px; text-align: center; font-size: 12px; }
+                @media print {
+                  body { margin: 0; padding: 15px; }
+                  .page-break { page-break-after: always; }
+                }
+              </style>
+            </head>
+            <body>
+              ${printContent.innerHTML}
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 100);
+      }
+    }
+  };
+
+    const prepareDataForSave = () => {
     const contentsWithNumbers = currentContents.map(item => ({
       ...item,
       price: typeof item.price === 'number' ? item.price : 0,
@@ -434,6 +484,7 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
     setLoading(false);
   }
 };
+
   useEffect(() => {
     const loadContainers = async () => {
       try {
@@ -533,8 +584,7 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
       </div>
     ));
   };
-
-  return (
+    return (
     <div className="min-h-screen bg-gradient-to-br from-green-700 to-green-600 text-white flex flex-col">
       <Navbar />
       
@@ -763,6 +813,12 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
                               Edit
                             </button>
                             <button
+                              onClick={() => handlePrint(container)}
+                              className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1 rounded text-sm transition duration-200"
+                            >
+                              Print
+                            </button>
+                            <button
                               onClick={() => deleteContainer(container.id)}
                               className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-sm transition duration-200"
                             >
@@ -823,6 +879,12 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
                         className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm transition duration-200"
                       >
                         Edit
+                      </button>
+                      <button
+                        onClick={() => handlePrint(container)}
+                        className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1 rounded text-sm transition duration-200"
+                      >
+                        Print
                       </button>
                       <button
                         onClick={() => deleteContainer(container.id)}
@@ -965,6 +1027,98 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {showPrintModal && printContainer && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg max-w-4xl w-full max-h-[80vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-semibold text-green-900">
+                  Print Container {printContainer.containerId}
+                </h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={executePrint}
+                    className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded transition duration-200"
+                  >
+                    Print Now
+                  </button>
+                  <button
+                    onClick={() => setShowPrintModal(false)}
+                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition duration-200"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+
+              <div id="print-content" className="p-4 bg-white text-black">
+                <div className="header">
+                  <h1>Al Raya Used Auto Spare Trading LLC</h1>
+                  <h2>Container Report: {printContainer.containerId}</h2>
+                </div>
+
+                <div className="container-info">
+                  <table>
+                    <tbody>
+                      <tr>
+                        <td><strong>Container ID:</strong></td>
+                        <td>{printContainer.containerId}</td>
+                        <td><strong>Status:</strong></td>
+                        <td>{printContainer.status}</td>
+                      </tr>
+                      <tr>
+                        <td><strong>City:</strong></td>
+                        <td>{printContainer.city}</td>
+                        <td><strong>Date:</strong></td>
+                        <td>{printContainer.date}</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Rent:</strong></td>
+                        <td>${printContainer.rent}</td>
+                        <td><strong>Grand Total:</strong></td>
+                        <td>${printContainer.grandTotal}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <table className="contents-table">
+                  <thead>
+                    <tr>
+                      <th>No.</th>
+                      <th>Item</th>
+                      <th>Model</th>
+                      <th>Lot Number</th>
+                      <th>Price ($)</th>
+                      <th>Recovery ($)</th>
+                      <th>Cutting ($)</th>
+                      <th>Total ($)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {printContainer.contents.map((item, index) => (
+                      <tr key={index}>
+                        <td>{item.number}</td>
+                        <td>{item.item}</td>
+                        <td>{item.model}</td>
+                        <td>{item.lotNumber}</td>
+                        <td>${item.price}</td>
+                        <td>${item.recovery}</td>
+                        <td>${item.cutting}</td>
+                        <td>${item.total}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <div className="footer">
+                  <p>Generated on: {new Date().toLocaleDateString()}</p>
+                  <p>© 2025 Al Raya Used Auto Spare Trading LLC. All rights reserved.</p>
+                </div>
+              </div>
             </div>
           </div>
         )}

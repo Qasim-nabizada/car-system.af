@@ -51,6 +51,9 @@ export default function UAESalesPage() {
   const [error, setError] = useState<string | null>(null);
   const [containerLoading, setContainerLoading] = useState(false);
 
+  // اضافه کردن state جدید برای پرینت
+  const [showPrintModal, setShowPrintModal] = useState(false);
+
   useEffect(() => {
     if (status === 'loading') return;
     
@@ -129,6 +132,49 @@ export default function UAESalesPage() {
       setError('Error loading data. Please try again.');
     } finally {
       setContainerLoading(false);
+    }
+  };
+
+  // تابع جدید برای پرینت گرفتن
+  const executePrint = () => {
+    const printContent = document.getElementById('print-content');
+    if (printContent) {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>UAE Sales Report - Container ${selectedContainer?.containerId}</title>
+              <style>
+                body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #000; }
+                .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+                .container-info { margin-bottom: 20px; }
+                .container-info table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+                .container-info td { padding: 8px; border: 1px solid #000; }
+                .section-title { background-color: #f0f0f0; padding: 8px; font-weight: bold; margin-top: 20px; border: 1px solid #000; }
+                .contents-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                .contents-table th, .contents-table td { padding: 8px; border: 1px solid #000; text-align: center; }
+                .summary-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                .summary-table th, .summary-table td { padding: 8px; border: 1px solid #000; }
+                .footer { margin-top: 30px; text-align: center; font-size: 12px; border-top: 1px solid #000; padding-top: 10px; }
+                @media print {
+                  body { margin: 0; padding: 15px; }
+                  .page-break { page-break-after: always; }
+                }
+              </style>
+            </head>
+            <body>
+              ${printContent.innerHTML}
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 100);
+      }
     }
   };
 
@@ -217,7 +263,8 @@ export default function UAESalesPage() {
   const totalBenefits = totalSaleUAE - totalExpends;
   const eachPersonBenefits = totalBenefits / 2;
 
-  if (status === 'loading' || loading) {
+
+    if (status === 'loading' || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-green-100 flex flex-col">
         <Navbar />
@@ -240,13 +287,21 @@ export default function UAESalesPage() {
             <p className="text-green-700 text-lg mb-4">Sales and expenditure tracking for UAE operations</p>
             
             {selectedContainer && (
-              <button
-                onClick={saveData}
-                disabled={saving}
-                className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg transition duration-200 font-semibold"
-              >
-                {saving ? '💾 Saving...' : '💾 Save Data'}
-              </button>
+              <div className="flex justify-center gap-4">
+                <button
+                  onClick={saveData}
+                  disabled={saving}
+                  className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg transition duration-200 font-semibold"
+                >
+                  {saving ? '💾 Saving...' : '💾 Save Data'}
+                </button>
+                <button
+                  onClick={() => setShowPrintModal(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition duration-200 font-semibold"
+                >
+                  🖨️ Print Report
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -487,6 +542,158 @@ export default function UAESalesPage() {
                     <p className="text-green-900 text-sm">Exchange Rate: 1 USD = {USD_TO_AED_RATE} AED</p>
                     <p className="text-green-700 text-xs">Container: {selectedContainer.containerId}</p>
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+                {showPrintModal && selectedContainer && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg max-w-4xl w-full max-h-[80vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-semibold text-green-900">
+                  Print UAE Sales Report - Container {selectedContainer.containerId}
+                </h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={executePrint}
+                    className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded transition duration-200"
+                  >
+                    Print Now
+                  </button>
+                  <button
+                    onClick={() => setShowPrintModal(false)}
+                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition duration-200"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+
+              <div id="print-content" className="p-4 bg-white text-black">
+                <div className="header">
+                  <h1>Al Raya Used Auto Spare Trading LLC</h1>
+                  <h2>UAE Sales Report - Container {selectedContainer.containerId}</h2>
+                  <p>Generated on: {new Date().toLocaleDateString()}</p>
+                </div>
+
+                <div className="container-info">
+                  <table>
+                    <tbody>
+                      <tr>
+                        <td><strong>Container ID:</strong></td>
+                        <td>{selectedContainer.containerId}</td>
+                        <td><strong>Status:</strong></td>
+                        <td>{selectedContainer.status}</td>
+                      </tr>
+                      <tr>
+                        <td><strong>User:</strong></td>
+                        <td>{selectedContainer.user?.name || 'Unknown'}</td>
+                        <td><strong>Total Buy (USD):</strong></td>
+                        <td>${selectedContainer.grandTotal.toLocaleString()}</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Total Buy (AED):</strong></td>
+                        <td>{totalBuyUSA.toLocaleString()} AED</td>
+                        <td><strong>Exchange Rate:</strong></td>
+                        <td>1 USD = {USD_TO_AED_RATE} AED</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="section-title">Sales Items</div>
+                <table className="contents-table">
+                  <thead>
+                    <tr>
+                      <th>No.</th>
+                      <th>Item</th>
+                      <th>Sale Price (AED)</th>
+                      <th>Lot Number</th>
+                      <th>Note</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sales.map((item, index) => (
+                      <tr key={index}>
+                        <td>{item.number}</td>
+                        <td>{item.item}</td>
+                        <td>{item.salePrice.toLocaleString()}</td>
+                        <td>{item.lotNumber}</td>
+                        <td>{item.note}</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-gray-100 font-bold">
+                      <td colSpan={2}>Total Sales (AED):</td>
+                      <td>{totalSaleUAE.toLocaleString()}</td>
+                      <td colSpan={2}></td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <div className="section-title">UAE Expenditures</div>
+                <table className="contents-table">
+                  <thead>
+                    <tr>
+                      <th>Category</th>
+                      <th>Amount (AED)</th>
+                      <th>Description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {expends.map((item, index) => (
+                      <tr key={index}>
+                        <td>{item.category}</td>
+                        <td>{item.amount.toLocaleString()}</td>
+                        <td>{item.description}</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-gray-100 font-bold">
+                      <td>Total UAE Expend (AED):</td>
+                      <td>{totalExpendUAE.toLocaleString()}</td>
+                      <td></td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <div className="section-title">Grand Total Counting</div>
+                <table className="summary-table">
+                  <tbody>
+                    <tr>
+                      <td><strong>Total Buy in USA (AED):</strong></td>
+                      <td>{totalBuyUSA.toLocaleString()} AED</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Total Expend in UAE (AED):</strong></td>
+                      <td>{totalExpendUAE.toLocaleString()} AED</td>
+                    </tr>
+                    <tr className="bg-blue-50">
+                      <td><strong>Total Expends (AED):</strong></td>
+                      <td><strong>{totalExpends.toLocaleString()} AED</strong></td>
+                    </tr>
+                    <tr>
+                      <td><strong>Total Sale In UAE (AED):</strong></td>
+                      <td>{totalSaleUAE.toLocaleString()} AED</td>
+                    </tr>
+                    <tr className={totalBenefits >= 0 ? "bg-green-50" : "bg-red-50"}>
+                      <td><strong>Total Benefits (AED):</strong></td>
+                      <td><strong className={totalBenefits >= 0 ? "text-green-600" : "text-red-600"}>
+                        {totalBenefits.toLocaleString()} AED
+                      </strong></td>
+                    </tr>
+                    <tr className={eachPersonBenefits >= 0 ? "bg-purple-50" : "bg-red-50"}>
+                      <td><strong>Each person Benefits (AED):</strong></td>
+                      <td><strong className={eachPersonBenefits >= 0 ? "text-purple-600" : "text-red-600"}>
+                        {eachPersonBenefits.toLocaleString()} AED
+                      </strong></td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <div className="footer">
+                  <p>© 2025 Al Raya Used Auto Spare Trading LLC. All rights reserved.</p>
+                  <p>Report generated by: {session?.user?.name || 'System'}</p>
                 </div>
               </div>
             </div>

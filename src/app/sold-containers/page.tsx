@@ -127,6 +127,13 @@ export default function SoldContainersPage() {
     return amount.toLocaleString('en-US');
   };
 
+  const handlePrint = (container: ContainerData) => {
+    setSelectedContainer(container);
+    setTimeout(() => {
+      window.print();
+    }, 100);
+  };
+
   if (status === 'loading' || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-cyan-100 flex flex-col">
@@ -156,7 +163,7 @@ export default function SoldContainersPage() {
             </Link>
             
             <h1 className="text-4xl font-bold text-blue-900 text-center">
-            Sold Containers in UAE
+              Sold Containers in UAE
             </h1>
             
             <button
@@ -291,6 +298,13 @@ export default function SoldContainersPage() {
                       </div>
                     </div>
                   )}
+
+                  <button
+                    onClick={() => handlePrint(selectedContainer)}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition duration-200 font-semibold"
+                  >
+                    🖨️ Print Container Report
+                  </button>
                 </div>
               </div>
             </div>
@@ -343,9 +357,15 @@ export default function SoldContainersPage() {
                             <td className="p-4">
                               <button
                                 onClick={() => setSelectedContainer(container)}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded transition duration-200"
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded transition duration-200 mr-2"
                               >
                                 View Details
+                              </button>
+                              <button
+                                onClick={() => handlePrint(container)}
+                                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded transition duration-200"
+                              >
+                                Print
                               </button>
                             </td>
                           </tr>
@@ -364,7 +384,174 @@ export default function SoldContainersPage() {
         </div>
       </main>
 
+      {/* Print Section */}
+      {selectedContainer && (
+        <div className="hidden print:block print:absolute print:inset-0 print:bg-white print:text-black">
+          <div className="p-8">
+            {/* Header */}
+            <div className="text-center mb-8 border-b border-gray-300 pb-4">
+              <h1 className="text-2xl font-bold mb-2">Container Sales Report</h1>
+              <p className="text-lg">Detailed information for container {selectedContainer.containerId}</p>
+            </div>
+
+            {/* Container Information */}
+            <div className="mb-6">
+              <h2 className="text-xl font-bold mb-3 border-b border-gray-300 pb-1">Container Information</h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p><span className="font-semibold">Container ID:</span> {selectedContainer.containerId}</p>
+                  <p><span className="font-semibold">Owner:</span> {selectedContainer.user?.name}</p>
+                  <p><span className="font-semibold">City:</span> {selectedContainer.city}</p>
+                </div>
+                <div>
+                  <p><span className="font-semibold">Date:</span> {selectedContainer.date}</p>
+                  <p><span className="font-semibold">Status:</span> {selectedContainer.status}</p>
+                  <p><span className="font-semibold">Report Date:</span> {new Date().toLocaleDateString()}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Financial Summary */}
+            <div className="mb-6">
+              <h2 className="text-xl font-bold mb-3 border-b border-gray-300 pb-1">Financial Summary</h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p><span className="font-semibold">Purchase Cost (USA):</span> ${formatCurrency(selectedContainer.grandTotal)}</p>
+                  <p><span className="font-semibold">Purchase Cost (AED):</span> {formatCurrency(selectedContainer.grandTotal * 3.67)} AED</p>
+                  <p><span className="font-semibold">Container Rent:</span> ${formatCurrency(selectedContainer.rent)}</p>
+                </div>
+                <div>
+                  <p><span className="font-semibold">Total Sales:</span> {formatCurrency(selectedContainer.uaeSales?.reduce((sum, sale) => sum + sale.salePrice, 0) || 0)} AED</p>
+                  <p><span className="font-semibold">Total Expenses:</span> {formatCurrency(selectedContainer.uaeExpends?.reduce((sum, expend) => sum + expend.amount, 0) || 0)} AED</p>
+                  <p><span className="font-semibold">Net Profit:</span> 
+                    <span className={selectedContainer.uaeSales?.reduce((sum, sale) => sum + sale.salePrice, 0) - ((selectedContainer.grandTotal * 3.67) + (selectedContainer.uaeExpends?.reduce((sum, expend) => sum + expend.amount, 0) || 0)) >= 0 ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
+                      {' '}{formatCurrency((selectedContainer.uaeSales?.reduce((sum, sale) => sum + sale.salePrice, 0) || 0) - ((selectedContainer.grandTotal * 3.67) + (selectedContainer.uaeExpends?.reduce((sum, expend) => sum + expend.amount, 0) || 0)))} AED
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Sales Items Table */}
+            <div className="mb-6">
+              <h2 className="text-xl font-bold mb-3 border-b border-gray-300 pb-1">Sales Items</h2>
+              {selectedContainer.uaeSales && selectedContainer.uaeSales.length > 0 ? (
+                <table className="w-full border-collapse border border-gray-400">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="border border-gray-300 p-2 text-left">Item #</th>
+                      <th className="border border-gray-300 p-2 text-left">Description</th>
+                      <th className="border border-gray-300 p-2 text-left">Lot Number</th>
+                      <th className="border border-gray-300 p-2 text-left">Sale Price (AED)</th>
+                      <th className="border border-gray-300 p-2 text-left">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedContainer.uaeSales.map((sale) => (
+                      <tr key={sale.id}>
+                        <td className="border border-gray-300 p-2">{sale.number}</td>
+                        <td className="border border-gray-300 p-2">{sale.item}</td>
+                        <td className="border border-gray-300 p-2">{sale.lotNumber}</td>
+                        <td className="border border-gray-300 p-2">{formatCurrency(sale.salePrice)}</td>
+                        <td className="border border-gray-300 p-2">{sale.note}</td>
+                      </tr>
+                    ))}
+                    <tr className="font-semibold bg-gray-50">
+                      <td className="border border-gray-300 p-2" colSpan={3}>Total Sales</td>
+                      <td className="border border-gray-300 p-2">{formatCurrency(selectedContainer.uaeSales.reduce((sum, sale) => sum + sale.salePrice, 0))}</td>
+                      <td className="border border-gray-300 p-2"></td>
+                    </tr>
+                  </tbody>
+                </table>
+              ) : (
+                <p>No sales data available.</p>
+              )}
+            </div>
+
+            {/* Expenses Table */}
+            <div className="mb-6">
+              <h2 className="text-xl font-bold mb-3 border-b border-gray-300 pb-1">Expenses</h2>
+              {selectedContainer.uaeExpends && selectedContainer.uaeExpends.length > 0 ? (
+                <table className="w-full border-collapse border border-gray-400">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="border border-gray-300 p-2 text-left">Category</th>
+                      <th className="border border-gray-300 p-2 text-left">Description</th>
+                      <th className="border border-gray-300 p-2 text-left">Amount (AED)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedContainer.uaeExpends.map((expense) => (
+                      <tr key={expense.id}>
+                        <td className="border border-gray-300 p-2">{expense.category}</td>
+                        <td className="border border-gray-300 p-2">{expense.description}</td>
+                        <td className="border border-gray-300 p-2">{formatCurrency(expense.amount)}</td>
+                      </tr>
+                    ))}
+                    <tr className="font-semibold bg-gray-50">
+                      <td className="border border-gray-300 p-2" colSpan={2}>Total Expenses</td>
+                      <td className="border border-gray-300 p-2">{formatCurrency(selectedContainer.uaeExpends.reduce((sum, expend) => sum + expend.amount, 0))}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              ) : (
+                <p>No expense data available.</p>
+              )}
+            </div>
+
+            {/* Profit Calculation */}
+            <div className="mt-8 p-4 border border-gray-300 bg-gray-50">
+              <h2 className="text-xl font-bold mb-3 text-center">Profit & Loss Summary</h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p><span className="font-semibold">Total Revenue:</span> {formatCurrency(selectedContainer.uaeSales?.reduce((sum, sale) => sum + sale.salePrice, 0) || 0)} AED</p>
+                  <p><span className="font-semibold">Total Costs:</span> {formatCurrency((selectedContainer.grandTotal * 3.67) + (selectedContainer.uaeExpends?.reduce((sum, expend) => sum + expend.amount, 0) || 0))} AED</p>
+                </div>
+                <div>
+                  <p className="text-lg">
+                    <span className="font-semibold">Net Profit/Loss:</span> 
+                    <span className={selectedContainer.uaeSales?.reduce((sum, sale) => sum + sale.salePrice, 0) - ((selectedContainer.grandTotal * 3.67) + (selectedContainer.uaeExpends?.reduce((sum, expend) => sum + expend.amount, 0) || 0)) >= 0 ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
+                      {' '}{formatCurrency((selectedContainer.uaeSales?.reduce((sum, sale) => sum + sale.salePrice, 0) || 0) - ((selectedContainer.grandTotal * 3.67) + (selectedContainer.uaeExpends?.reduce((sum, expend) => sum + expend.amount, 0) || 0)))} AED
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 text-center text-sm text-gray-500">
+              <p>Report generated on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Footer />
+      
+      <style jsx global>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          .print\\:block, .print\\:block * {
+            visibility: visible;
+          }
+          .print\\:absolute {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+          }
+          .print\\:bg-white {
+            background: white;
+          }
+          .print\\:text-black {
+            color: black;
+          }
+          .no-print {
+            display: none !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
