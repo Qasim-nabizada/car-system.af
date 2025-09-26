@@ -101,6 +101,38 @@ export default function SettingsPage() {
     }
   };
 
+const handleQuickBooksIntegration = async () => {
+  try {
+    setLoading(true);
+    setError('');
+    
+    // اینجا می‌توانید API call برای یکپارچه‌سازی با QuickBooks اضافه کنید
+    const response = await fetch('/api/quickbooks/connect', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (response.ok) {
+      setSuccess('QuickBooks integration initiated successfully!');
+      
+      // ریدایرکت به صفحه احراز هویت QuickBooks یا باز کردن پنجره جدید
+      window.open('https://quickbooks.intuit.com/connect/', '_blank');
+      
+      setTimeout(() => setSuccess(''), 5000);
+    } else {
+      const errorData = await response.json();
+      setError(errorData.error || 'Failed to initiate QuickBooks integration');
+    }
+  } catch (error) {
+    console.error('Error initiating QuickBooks integration:', error);
+    setError('Failed to connect to QuickBooks');
+  } finally {
+    setLoading(false);
+  }
+};
+
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -382,6 +414,19 @@ export default function SettingsPage() {
               />
             </div>
             
+// اضافه کردن دکمه یکپارچه‌سازی با QuickBooks در بخش هدر
+<button
+  onClick={() => {
+    // توابع یکپارچه‌سازی با QuickBooks اینجا فراخوانی خواهند شد
+    handleQuickBooksIntegration();
+  }}
+  className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-xl transition-all duration-200 font-semibold flex items-center space-x-2"
+>
+  <span>📊</span>
+  <span>QuickBooks Integration</span>
+</button>
+
+
             <button
               onClick={startEditManagerProfile}
               className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-xl transition-all duration-200 font-semibold flex items-center space-x-2"

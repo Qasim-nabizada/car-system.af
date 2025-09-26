@@ -330,11 +330,15 @@ export default function UAESalesPage() {
     }
   };
 
+  // محاسبات جدید بر اساس منطق درست
   const totalExpendUAE = expends.reduce((sum, item) => sum + item.amount, 0);
   const totalBuyUSA = selectedContainer ? selectedContainer.grandTotal * USD_TO_AED_RATE : 0;
   const totalSaleUAE = sales.reduce((sum, item) => sum + item.salePrice, 0);
-  const totalBenefits = totalSaleUAE - totalExpendUAE;
-  const eachPersonBenefits = totalBenefits / 2;
+  
+  // محاسبه سود بر اساس منطق جدید: فروش UAE منهای (خرید USA + مصارف UAE)
+  const totalExpends = totalBuyUSA + totalExpendUAE; // کل مصارف (خرید + مصارف UAE)
+  const totalBenefits = totalSaleUAE - totalExpends; // سود کل
+  const eachPersonBenefits = totalBenefits / 2; // سود هر نفر
 
   if (status === 'loading' || loading) {
     return (
@@ -654,7 +658,7 @@ export default function UAESalesPage() {
 
                 <div className="mt-4 p-3 bg-green-100 rounded-lg border border-green-200">
                   <div className="flex justify-between items-center">
-                    <span className="text-green-900 font-semibold">Total Expend (AED):</span>
+                    <span className="text-green-900 font-semibold">Total UAE Expend (AED):</span>
                     <span className="text-green-900 font-bold">{totalExpendUAE.toLocaleString()}</span>
                   </div>
                 </div>
@@ -666,7 +670,7 @@ export default function UAESalesPage() {
                 )}
               </div>
 
-              {/* Grand Total Counting - اصلاح شده */}
+              {/* Grand Total Counting - اصلاح شده با منطق جدید */}
               <div className="bg-white rounded-2xl shadow-lg p-6 border border-green-200">
                 <h3 className="text-xl font-semibold text-green-900 mb-4">Grand Total Counting</h3>
                 
@@ -681,10 +685,10 @@ export default function UAESalesPage() {
                     <span className="text-green-900 font-semibold">{totalExpendUAE.toLocaleString()}</span>
                   </div>
 
-                  {/* این بخش اصلاح شده - فقط مصارف UAE را نشان می‌دهد */}
+                  {/* بخش جدید: جمع کل مصارف */}
                   <div className="flex justify-between items-center pt-2 border-t border-green-200">
                     <span className="text-blue-800 text-sm font-medium">Total Expends (AED):</span>
-                    <span className="text-blue-900 font-semibold">{totalExpendUAE.toLocaleString()}</span>
+                    <span className="text-blue-900 font-semibold">{totalExpends.toLocaleString()}</span>
                   </div>
 
                   <div className="flex justify-between items-center">
@@ -692,6 +696,7 @@ export default function UAESalesPage() {
                     <span className="text-green-900 font-semibold">{totalSaleUAE.toLocaleString()}</span>
                   </div>
 
+                  {/* محاسبه سود بر اساس منطق جدید */}
                   <div className="flex justify-between items-center pt-2 border-t border-green-200">
                     <span className="text-yellow-800 text-sm font-medium">Total Benefits (AED):</span>
                     <span className={`font-semibold ${totalBenefits >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -711,6 +716,9 @@ export default function UAESalesPage() {
                   <div className="text-center">
                     <p className="text-green-900 text-sm">Exchange Rate: 1 USD = {USD_TO_AED_RATE} AED</p>
                     <p className="text-green-700 text-xs">Container: {selectedContainer.containerId}</p>
+                    <p className="text-green-700 text-xs mt-1">
+                      Calculation: Total Sale - (Total Buy USA + Total Expend UAE)
+                    </p>
                   </div>
                 </div>
               </div>
@@ -718,7 +726,7 @@ export default function UAESalesPage() {
           </div>
         )}
 
-        {/* Print Modal */}
+        {/* Print Modal - اصلاح شده با منطق جدید */}
         {showPrintModal && selectedContainer && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white p-6 rounded-lg max-w-4xl w-full max-h-[80vh] overflow-y-auto">
@@ -845,10 +853,10 @@ export default function UAESalesPage() {
                       <td><strong>Total Expend in UAE (AED):</strong></td>
                       <td>{totalExpendUAE.toLocaleString()} AED</td>
                     </tr>
-                    {/* این بخش اصلاح شده */}
+                    {/* بخش جدید در پرینت */}
                     <tr className="bg-blue-50">
                       <td><strong>Total Expends (AED):</strong></td>
-                      <td><strong>{totalExpendUAE.toLocaleString()} AED</strong></td>
+                      <td><strong>{totalExpends.toLocaleString()} AED</strong></td>
                     </tr>
                     <tr>
                       <td><strong>Total Sale In UAE (AED):</strong></td>
@@ -872,6 +880,7 @@ export default function UAESalesPage() {
                 <div className="footer">
                   <p>© 2025 Al Raya Used Auto Spare Trading LLC. All rights reserved.</p>
                   <p>Report generated by: {session?.user?.name || 'System'}</p>
+                  <p>Calculation Formula: Total Sale - (Total Buy USA + Total Expend UAE)</p>
                 </div>
               </div>
             </div>

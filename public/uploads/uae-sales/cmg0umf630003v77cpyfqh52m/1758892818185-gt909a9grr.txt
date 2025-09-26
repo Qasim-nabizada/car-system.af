@@ -1,0 +1,2525 @@
+"use client";
+
+import { useState } from "react";
+import { listContainers, listItems, listRemittances } from "@/lib/mockStore";
+
+export default function AdminContainersPage() {
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [expandedContainerId, setExpandedContainerId] = useState<string | null>(null);
+
+  const containers = selectedUser ? listContainers(selectedUser) : [];
+
+  const handleUserSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedUser(e.target.value);
+    setExpandedContainerId(null);
+  };
+
+  return (
+    <div className="p-8 max-w-6xl mx-auto">
+      <h1 className="text-3xl font-bold text-green-700 mb-8 text-center">Container Management</h1>
+
+      {/* User Selection */}
+      <div className="flex justify-center mb-10">
+        <div className="border border-green-300 rounded-xl shadow-md px-6 py-4 w-full max-w-md bg-white">
+          <label className="block text-green-700 font-bold mb-2 text-lg">Select User</label>
+          <select
+            className="w-full border border-green-300 rounded px-4 py-2 font-semibold text-green-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            onChange={handleUserSelect}
+          >
+            <option value="">-- Choose --</option>
+            <option value="user1">User 1</option>
+            <option value="user2">User 2</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Container List */}
+      {containers.map((container) => {
+        const isExpanded = expandedContainerId === container.id;
+        const items = listItems(selectedUser!, container.id) ?? [];
+        const remittances = listRemittances(selectedUser!, container.id) ?? [];
+
+        const totals = {
+          itemsTotal: items.reduce((sum: number, i) => sum + (i.totalUsd ?? 0), 0),
+          grandTotal: remittances.reduce((sum: number, r) => sum + (r.amountUsd ?? 0), 0),
+        };
+
+        return (
+          <div key={container.id} className="mb-10 border border-green-300 rounded-xl shadow-lg bg-white">
+            <button
+              onClick={() => setExpandedContainerId(isExpanded ? null : container.id)}
+              className="w-full text-left p-6 rounded-t-xl hover:bg-gray-50 transition"
+            >
+              <div className="space-y-2 text-center">
+                <div className="text-xl font-bold text-green-700">📦 {container.code}</div>
+                <div className="text-sm font-bold text-green-700">
+                  Origin: {container.originCity ?? "Unknown"} | Date: {container.date ?? "Unknown"}
+                </div>
+                <div className="text-sm font-bold text-green-700">
+                  Freight: ${container.freightUsd ?? 0} | Items Total: ${totals.itemsTotal} | Grand Total: ${totals.grandTotal}
+                </div>
+              </div>
+            </button>
+
+            {isExpanded && (
+              <div className="p-6 space-y-10 rounded-b-xl">
+                {/* Items Table */}
+                <div>
+                  <h3 className="text-lg font-bold text-green-700 mb-2">Items</h3>
+                  <table className="w-full text-sm border border-black rounded overflow-hidden">
+                    <thead>
+                      <tr className="text-green-700 font-bold">
+                        <th className="p-2 border border-black">Item</th>
+                        <th className="p-2 border border-black">Model</th>
+                        <th className="p-2 border border-black">Lot</th>
+                        <th className="p-2 border border-black">Price</th>
+                        <th className="p-2 border border-black">Recovery</th>
+                        <th className="p-2 border border-black">Cutting</th>
+                        <th className="p-2 border border-black">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((item) => (
+                        <tr key={item.id} className="hover:bg-gray-50 text-black">
+                          <td className="p-2 border border-black">{item.item}</td>
+                          <td className="p-2 border border-black">{item.model}</td>
+                          <td className="p-2 border border-black">{item.lotNumber}</td>
+                          <td className="p-2 border border-black text-right">${item.priceUsd}</td>
+                          <td className="p-2 border border-black text-right">${item.recoveryUsd}</td>
+                          <td className="p-2 border border-black text-right">${item.cuttingUsd}</td>
+                          <td className="p-2 border border-black text-right font-bold text-green-700">${item.totalUsd}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Remittances Section */}
+                <div className="border border-black rounded-xl shadow-md p-6 bg-white">
+                  <h3 className="text-lg font-bold text-green-700 mb-4 text-center">💸 Remittances</h3>
+                  <table className="w-full text-sm border border-black rounded overflow-hidden">
+                    <thead>
+                      <tr className="text-green-700 font-bold">
+                        <th className="p-2 border border-black">Date</th>
+                        <th className="p-2 border border-black">Method</th>
+                        <th className="p-2 border border-black">Reference</th>
+                        <th className="p-2 border border-black">Amount</th>
+                        <th className="p-2 border border-black">Fee</th>
+                        <th className="p-2 border border-black">Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {remittances.map((r) => (
+                        <tr key={r.id} className="hover:bg-gray-50 text-black">
+                          <td className="p-2 border border-black">{r.date}</td>
+                          <td className="p-2 border border-black">{r.method}</td>
+                          <td className="p-2 border border-black">{r.reference}</td>
+                          <td className="p-2 border border-black text-right font-bold text-green-700">${r.amountUsd}</td>
+                          <td className="p-2 border border-black text-right">${r.feeUsd ?? 0}</td>
+                          <td className="p-2 border border-black">{r.notes}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+second page
+
+'use client';
+
+import { useState } from "react";
+import { listContainers, listItems } from "@/lib/mockStore";
+import { save, load } from "@/lib/mockStore"; // 👈 مطمئن شو این دو تابع ایمپورت شده‌اند
+
+
+export default function AdminUAESalesPage() {
+  const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
+  const [sales, setSales] = useState<any[]>([]);
+  const [port, setPort] = useState<number>(0);
+  const [rent, setRent] = useState<number>(0);
+  const [tips, setTips] = useState<number>(0);
+  const [over, setOver] = useState<number>(0);
+
+  const usdToAedRate = 3.67;
+const allContainers = [
+  ...listContainers("user1").map(c => ({ ...c, username: "user1" })),
+  ...listContainers("user2").map(c => ({ ...c, username: "user2" })),
+];
+
+  const selectedContainer = allContainers.find((c) => c.id === selectedContainerId);
+  const items = selectedContainerId
+    ? listItems("user1", selectedContainerId).concat(listItems("user2", selectedContainerId))
+    : [];
+
+  const totalBuyUsd = items.reduce((sum, i) => sum + (i.totalUsd ?? 0), 0);
+  const totalBuyAed = Math.round(totalBuyUsd * usdToAedRate);
+  const totalSellAed = sales.reduce((sum, s) => sum + (+s.salePrice || 0), 0);
+  const totalExpendAed = port + rent + tips + over;
+  const totalSet = totalBuyAed + totalExpendAed;
+  const totalBenefit = totalSellAed - totalSet;
+  const benefitPerPerson = Math.round(totalBenefit / 2);
+
+  const handleSaleChange = (index: number, field: string, value: string) => {
+    const updated = [...sales];
+    updated[index] = { ...updated[index], [field]: value };
+    setSales(updated);
+  };
+
+  const handleAddSaleRow = () => {
+    setSales([
+      ...sales,
+      { number: sales.length + 1, item: "", salePrice: "", lotNumber: "", note: "" },
+    ]);
+  };
+
+  return (
+    <div className="p-8 max-w-6xl mx-auto">
+      <h1 className="text-3xl font-bold text-green-700 mb-8 text-center">
+        🇦🇪 UAE Sales Management
+      </h1>
+
+      <div className="mb-10 border border-green-300 rounded-xl shadow-md px-6 py-4 bg-white max-w-md mx-auto">
+        <label className="block text-green-700 font-bold mb-2 text-lg">Select Container</label>
+        <select
+          className="w-full border border-green-300 rounded px-4 py-2 font-semibold text-green-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+          onChange={(e) => {
+            setSelectedContainerId(e.target.value);
+            setSales([]);
+            setPort(0);
+            setRent(0);
+            setTips(0);
+            setOver(0);
+          }}
+        >
+          <option value="">-- Choose Container --</option>
+          {allContainers.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.code}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {selectedContainer && (
+        <div className="space-y-10">
+          <div className="border border-green-300 rounded-xl shadow-md p-6 bg-white">
+            <h3 className="text-lg font-bold text-green-700 mb-4 text-center">🛒 Sales Entry</h3>
+            <table className="w-full text-sm border border-black rounded overflow-hidden mb-4">
+              <thead>
+                <tr className="text-green-700 font-bold">
+                  <th className="p-2 border border-black">Number</th>
+                  <th className="p-2 border border-black">Item</th>
+                  <th className="p-2 border border-black">Sale Price (AED)</th>
+                  <th className="p-2 border border-black">Lot Number</th>
+                  <th className="p-2 border border-black">Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sales.map((sale, index) => (
+                  <tr key={index} className="text-black">
+                    <td className="p-2 border border-black">{sale.number}</td>
+                    <td className="p-2 border border-black">
+                      <input
+                        type="text"
+                        value={sale.item}
+                        onChange={(e) =>
+                          handleSaleChange(index, "item", e.target.value)
+                        }
+                        className="w-full px-2 py-1 border border-black rounded"
+                      />
+                    </td>
+                    <td className="p-2 border border-black">
+                      <input
+                        type="number"
+                        value={sale.salePrice}
+                        onChange={(e) =>
+                          handleSaleChange(index, "salePrice", e.target.value)
+                        }
+                        className="w-full px-2 py-1 border border-black rounded text-right"
+                      />
+                    </td>
+                    <td className="p-2 border border-black">
+                      <input
+                        type="text"
+                        value={sale.lotNumber}
+                        onChange={(e) =>
+                          handleSaleChange(index, "lotNumber", e.target.value)
+                        }
+                        className="w-full px-2 py-1 border border-black rounded"
+                      />
+                    </td>
+                    <td className="p-2 border border-black">
+                      <input
+                        type="text"
+                        value={sale.note}
+                        onChange={(e) =>
+                          handleSaleChange(index, "note", e.target.value)
+                        }
+                        className="w-full px-2 py-1 border border-black rounded"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="text-center">
+              <button
+                onClick={handleAddSaleRow}
+                className="bg-green-700 text-white px-6 py-2 rounded shadow hover:bg-green-800 transition"
+              >
+                ➕ Add Sale Row
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="border border-green-300 rounded-xl shadow-md p-6 bg-white">
+              <h3 className="text-lg font-bold text-green-700 mb-4 text-center"> UAE Expends</h3>
+              <div className="space-y-3 text-black text-sm">
+                {[
+                  { label: "Port", value: port, setter: setPort },
+                  { label: "Area Rent", value: rent, setter: setRent },
+                  { label: "Labor Tips", value: tips, setter: setTips },
+                  { label: "Over Expend", value: over, setter: setOver },
+                ].map((field, idx) => (
+                  <div key={idx} className="flex justify-between items-center">
+                    <label className="text-sm">{field.label}</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={field.value}
+                        onChange={(e) => field.setter(+e.target.value)}
+                        className="border rounded px-2 py-1 w-24 text-right"
+                      />
+                      <span className="text-xs text-green-700">AED</span>
+                    </div>
+                  </div>
+                ))}
+                <div className="flex justify-between font-bold text-green-700 pt-2 border-t border-green-300 mt-4">
+                  <label>Total</label>
+                  <div>{totalExpendAed.toLocaleString()} AED</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="border border-green-300 rounded-xl shadow-md p-6 bg-white">
+              <h3 className="text-lg font-bold text-green-700 mb-4 text-center">📊 Grand Total Counting</h3>
+              <div className="space-y-3 text-black text-sm">
+                <div className="flex justify-between">
+                  <span>Total Buy in USA</span>
+                  <span>{totalBuyUsd.toLocaleString()} AED</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Total Buy in AED</span>
+                  <span>{totalBuyAed.toLocaleString()} AED</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Total UAE Expends</span>
+                  <span>{totalExpendAed.toLocaleString()} AED</span>
+                </div>
+                <div className="flex justify-between font-bold text-green-700 pt-2 border-t border-green-300 mt-4">
+                  <span>Total Set</span>
+                  <span>{totalSet.toLocaleString()} AED</span>
+                </div>
+                <div className="flex justify-between font-bold text-green-700">
+                  <span>Total Sell</span>
+                  <span>{totalSellAed.toLocaleString()} AED</span>
+                </div>
+                                <div className="flex justify-between font-bold text-green-700">
+                  <span>Total Benefit</span>
+                  <span>{totalBenefit.toLocaleString()} AED</span>
+                </div>
+                <div className="flex justify-between font-bold text-green-700">
+                  <span>Benefit Per Person</span>
+                  <span>{benefitPerPerson.toLocaleString()} AED</span>
+                </div>
+              </div>
+            </div>
+<div className="text-center mt-8">
+  <button
+    onClick={() => {
+      if (!selectedContainerId || sales.length === 0) {
+        alert("Please select a container and enter sales.");
+        return;
+      }
+
+      const username = selectedContainer?.username || "user1"; // 👈 اگر container شامل username نیست، مقدار پیش‌فرض بده
+      const store = load(username);
+      const newSale = {
+        containerId: selectedContainerId,
+        items: sales,
+        port,
+        rent,
+        tips,
+        over,
+        createdAt: new Date().toISOString(),
+      };
+
+      const updatedStore = {
+        ...store,
+        uaeSale: [...(store.uaeSale || []), newSale],
+      };
+
+      save(username, updatedStore);
+      alert("✅ Sale saved successfully!");
+    }}
+    className="bg-green-700 text-white px-6 py-2 rounded shadow hover:bg-green-800 transition"
+  >
+    💾 Save Sale
+  </button>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+third page
+
+// client/app/dashboard/layout.tsx
+
+import React from "react";
+import Link from "next/link";
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-screen">
+      {/* Sidebar */}
+      <aside className="w-64 bg-green-800 text-white p-4">
+        <h2 className="text-3xl font-bold mb-6"> Al Raya LLC</h2>
+        <nav className="flex flex-col gap-3">
+         
+      
+          <Link href="/admin/containers">Containers</Link>
+          <Link href="/admin/uae-sales">UAE Sales</Link>
+          <Link href="/transfer-dashboard">Transfered List </Link>
+          <Link href="/sold-containers">Sold</Link>
+     
+          <Link href="/money-transfers">Transfer</Link>
+          <Link href="/reports">Reports</Link>
+
+          <Link href="/login">Log out</Link>
+        </nav>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 p-6 bg-gray-300">{children}</main>
+    </div>
+  );
+}
+
+
+
+fourth
+
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { listAllUsernames, load, getContainerTotals } from '@/lib/mockStore';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+import { Bar } from 'react-chartjs-2';
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
+
+const usdToAedRate = 3.67;
+
+// تابع اصلاح‌شده برای محاسبه مجموع پرداخت‌ها به AED
+function getRemittanceTotalAED(store: any, containerId: string): number {
+  if (!store?.remittances) return 0;
+
+  const containerRemits = store.remittances.filter((r: any) => r.containerId === containerId);
+
+  const totalUsd = containerRemits.reduce((sum: number, r: any) => {
+    const amount = typeof r.amount === 'string' ? Number(r.amount) : r.amount;
+    return sum + (isNaN(amount) ? 0 : amount);
+  }, 0);
+
+  return totalUsd * usdToAedRate;
+}
+
+export default function DashboardPage() {
+  const [reportData, setReportData] = useState<any[]>([]);
+
+  useEffect(() => {
+    const usernames = listAllUsernames();
+    const allRows: any[] = [];
+
+    usernames.forEach((username) => {
+      const store = load(username);
+
+      store.containers.forEach((container) => {
+        const totals = getContainerTotals(username, container.id);
+        const paidAed = getRemittanceTotalAED(store, container.id);
+
+        const itemsAed = totals.itemsTotal * usdToAedRate;
+        const freightAed = totals.freightUsd * usdToAedRate;
+        const totalCostAed = itemsAed + freightAed;
+        const profitAed = paidAed - totalCostAed;
+        const month = container.createdAt?.slice(0, 7) || 'Unknown';
+
+        allRows.push({
+          username,
+          code: container.code,
+          itemsAed,
+          freightAed,
+          totalCostAed,
+          paidAed,
+          profitAed,
+          month,
+        });
+      });
+    });
+
+    setReportData(allRows);
+  }, []);
+
+  const totalContainers = reportData.length;
+  const totalItemsAed = reportData.reduce((sum, r) => sum + r.itemsAed, 0);
+  const totalFreightAed = reportData.reduce((sum, r) => sum + r.freightAed, 0);
+  const totalPaidAed = reportData.reduce((sum, r) => sum + r.paidAed, 0);
+  const totalProfitAed = reportData.reduce((sum, r) => sum + r.profitAed, 0);
+
+  const monthlyProfitMap: Record<string, number> = {};
+  reportData.forEach((r) => {
+    monthlyProfitMap[r.month] = (monthlyProfitMap[r.month] || 0) + r.profitAed;
+  });
+
+  const barData = {
+    labels: Object.keys(monthlyProfitMap),
+    datasets: [
+      {
+        label: 'Profit per Month (AED)',
+        data: Object.values(monthlyProfitMap),
+        backgroundColor: '#34D399',
+      },
+    ],
+  };
+
+  return (
+    <div className="p-8 max-w-7xl mx-auto">
+      <h1 className="text-4xl font-bold text-blue-700 mb-10 text-center">📊 Dashboard Overview</h1>
+
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-10">
+        <StatCard title="Containers" value={totalContainers} color="bg-blue-100" />
+        <StatCard title="USA Cost (AED)" value={Math.round(totalItemsAed)} color="bg-yellow-100" />
+        <StatCard title="Freight (AED)" value={Math.round(totalFreightAed)} color="bg-orange-100" />
+        <StatCard title="UAE Expends (AED)" value={Math.round(totalPaidAed)} color="bg-green-100" />
+        <StatCard title="Total Profit (AED)" value={Math.round(totalProfitAed)} color="bg-purple-100" />
+      </div>
+
+      <div className="bg-white p-6 rounded shadow mb-12">
+        <h2 className="text-xl font-semibold text-green-600 mb-4">📈 Monthly Profit Chart</h2>
+        <Bar data={barData} />
+      </div>
+
+      <div className="bg-white p-6 rounded shadow">
+        <h2 className="text-xl font-semibold text-gray-700 mb-4">📦 Container Summary</h2>
+        <table className="w-full text-sm border border-gray-300">
+          <thead className="bg-gray-100 text-gray-700 font-bold">
+            <tr>
+              <th className="p-2 border">Code</th>
+              <th className="p-2 border">User</th>
+              <th className="p-2 border text-right">USA Cost (AED)</th>
+              <th className="p-2 border text-right">Freight (AED)</th>
+              <th className="p-2 border text-right">Profit (AED)</th>
+              <th className="p-2 border text-right">Month</th>
+            </tr>
+          </thead>
+          <tbody>
+            {reportData.map((r, i) => (
+              <tr key={i} className="hover:bg-gray-50">
+                <td className="p-2 border">{r.code}</td>
+                <td className="p-2 border">{r.username}</td>
+                <td className="p-2 border text-right">{Math.round(r.itemsAed).toLocaleString()}</td>
+                <td className="p-2 border text-right">{Math.round(r.freightAed).toLocaleString()}</td>
+                <td className="p-2 border text-right text-green-700 font-semibold">
+                  {Math.round(r.profitAed).toLocaleString()}
+                </td>
+                <td className="p-2 border text-right">{r.month}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ title, value, color }: { title: string; value: number; color: string }) {
+  return (
+    <div className={`p-6 rounded shadow text-center ${color}`}>
+      <div className="text-sm text-gray-600">{title}</div>
+      <div className="text-2xl font-bold text-gray-800 mt-2">{value.toLocaleString()} AED</div>
+    </div>
+  );
+}
+
+
+
+
+
+fiveth
+'use client';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+
+const users = {
+  admin: { password: 'admin123', role: 'admin' },
+  user1: { password: 'user123', role: 'user1' },
+  user2: { password: 'user456', role: 'user2' },
+};
+
+export default function LoginPage() {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const router = useRouter();
+
+  const handleLogin = () => {
+    const user = users[username];
+    if (user && user.password === password) {
+      localStorage.setItem('username', username);
+      localStorage.setItem('role', user.role);
+      if (user.role === 'admin') {
+        router.push('/dashboard');
+      } else {
+        router.push(`/purchase/${username}`);
+;
+      }
+    } else {
+      setError('The User Name Or password is Wrong');
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+      <div className="bg-white shadow-lg p-6 rounded-xl w-full max-w-sm">
+        <h2 className="text-2xl font-bold mb-4 text-center">Log in</h2>
+        {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+        <input
+          type="text"
+          placeholder=" User Name"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          className="mb-3 w-full border rounded px-3 py-2"
+        />
+        <input
+          type="password"
+          placeholder=" Password "
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="mb-4 w-full border rounded px-3 py-2"
+        />
+        <button
+          onClick={handleLogin}
+          className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition"
+        >
+          Log In
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+
+sixth
+'use client';
+
+import React, { useState } from 'react';
+import { listContainers, load, save } from '@/lib/mockStore';
+
+export default function MoneyTransferPage() {
+  const [username, setUsername] = useState('user1');
+  const [selectedContainerId, setSelectedContainerId] = useState('');
+  const [transfers, setTransfers] = useState<any[]>([]);
+  const [form, setForm] = useState({
+    number: '',
+    amount: '',
+    date: '',
+    manner: '',
+    sender: '',
+    receiver: '',
+  });
+  const [filterStart, setFilterStart] = useState('');
+  const [filterEnd, setFilterEnd] = useState('');
+
+  const allContainers = [...listContainers('user1'), ...listContainers('user2')];
+
+  const handleSelectContainer = (id: string) => {
+    setSelectedContainerId(id);
+    applyFilter(username, id, filterStart, filterEnd);
+  };
+
+  const handleChange = (field: string, value: string) => {
+    setForm({ ...form, [field]: value });
+  };
+
+  const handleSave = () => {
+    if (!selectedContainerId || !form.amount || !form.date) {
+      alert('Please fill required fields.');
+      return;
+    }
+
+    const newTransfer = {
+      containerId: selectedContainerId,
+      ...form,
+      amount: parseFloat(form.amount),
+    };
+
+    const store = load(username);
+    const updatedStore = {
+      ...store,
+      moneyTransfers: [...(store.moneyTransfers || []), newTransfer],
+    };
+
+    save(username, updatedStore);
+    applyFilter(username, selectedContainerId, filterStart, filterEnd);
+    setForm({
+      number: '',
+      amount: '',
+      date: '',
+      manner: '',
+      sender: '',
+      receiver: '',
+    });
+  };
+
+  const applyFilter = (
+    user: string,
+    containerId: string,
+    start: string,
+    end: string
+  ) => {
+    const store = load(user);
+    const allTransfers = store.moneyTransfers || [];
+    const filtered = allTransfers.filter((t) => {
+      const matchContainer = containerId ? t.containerId === containerId : true;
+      const matchDate =
+        (!start || new Date(t.date) >= new Date(start)) &&
+        (!end || new Date(t.date) <= new Date(end));
+      return matchContainer && matchDate;
+    });
+    setTransfers(filtered);
+  };
+
+  const handleFilterClick = () => {
+    applyFilter(username, selectedContainerId, filterStart, filterEnd);
+  };
+
+  const totalAmount = transfers.reduce((sum, t) => sum + (t.amount || 0), 0);
+
+  return (
+    <div className="p-8 max-w-5xl mx-auto">
+      <h1 className="text-3xl font-bold text-green-700 mb-6 text-center shadow-sm">
+        💸 Money Transfer Management
+      </h1>
+
+      {/* Filter Section */}
+      <div className="mb-6 bg-white border border-green-300 rounded-xl shadow-md p-6">
+        <h2 className="text-lg font-bold text-green-700 mb-4">🔍 Filter Transfers</h2>
+        <div className="grid grid-cols-3 gap-4 text-sm">
+          <div>
+            <label className="block text-green-700 font-semibold mb-1">User</label>
+            <select
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full border border-green-300 rounded px-3 py-2 text-green-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="user1">User 1</option>
+              <option value="user2">User 2</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-green-700 font-semibold mb-1">From Date</label>
+            <input
+              type="date"
+              value={filterStart}
+              onChange={(e) => setFilterStart(e.target.value)}
+              className="w-full border border-green-300 rounded px-3 py-2 text-green-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            />
+          </div>
+          <div>
+            <label className="block text-green-700 font-semibold mb-1">To Date</label>
+            <input
+              type="date"
+              value={filterEnd}
+              onChange={(e) => setFilterEnd(e.target.value)}
+              className="w-full border border-green-300 rounded px-3 py-2 text-green-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            />
+          </div>
+        </div>
+        <div className="mt-4 text-center">
+          <button
+            onClick={handleFilterClick}
+            className="bg-green-600 text-white px-6 py-2 rounded shadow hover:bg-green-700 transition"
+          >
+            🔎 Apply Filter
+          </button>
+        </div>
+      </div>
+
+      {/* Container Selection */}
+      <div className="mb-6 bg-white border border-green-300 rounded-xl shadow-md p-6">
+        <label className="block text-green-700 font-bold mb-2">Select Container</label>
+        <select
+          value={selectedContainerId}
+          onChange={(e) => handleSelectContainer(e.target.value)}
+          className="w-full border border-green-300 rounded px-4 py-2 text-green-800 font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+        >
+          <option value="">-- Choose Container --</option>
+          {allContainers.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.code}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Transfer Form & Table */}
+      {selectedContainerId && (
+        <>
+          <div className="mb-6 bg-white border border-green-300 rounded-xl shadow-md p-6">
+            <h2 className="text-lg font-bold text-green-700 mb-4">➕ Add Money Transfer</h2>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              {[
+                { label: 'Number', field: 'number' },
+                { label: 'Amount', field: 'amount' },
+                { label: 'Date', field: 'date' },
+                { label: 'Manner', field: 'manner' },
+                { label: 'Sender', field: 'sender' },
+                { label: 'Receiver', field: 'receiver' },
+              ].map(({ label, field }) => (
+                <div key={field}>
+                  <label className="block text-green-700 font-semibold mb-1">{label}</label>
+                  <input
+                    type={field === 'amount' ? 'number' : field === 'date' ? 'date' : 'text'}
+                    value={form[field as keyof typeof form]}
+                    onChange={(e) => handleChange(field, e.target.value)}
+                    className="w-full border border-green-300 rounded px-3 py-2 text-green-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 text-center">
+              <button
+                onClick={handleSave}
+                className="bg-green-600 text-white px-6 py-2 rounded shadow hover:bg-green-700 transition"
+              >
+                💾 Save Transfer
+              </button>
+            </div>
+          </div>
+
+          {/* Transfer Table */}
+          <div className="bg-white border border-green-300 rounded-xl shadow-md p-6">
+            <h2 className="text-lg font-bold text-green-700 mb-4">📋 Transfer History</h2>
+            {transfers.length === 0 ? (
+              <p className="text-gray-500">No transfers recorded for this container.</p>
+            ) : (
+              <table className="w-full text-sm border border-gray-300">
+                <thead className="bg-green-50 text-green-700 font-bold">
+                  <tr>
+                    <th className="p-2 border">#</th>
+                    <th className="p-2 border">Amount</th>
+                    <th className="p-2 border">Date</th>
+                    <th className="p-2 border">Manner</th>
+                    <th className="p-2 border">Sender</th>
+                    <th className="p-2 border">Receiver</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transfers.map((t, index) => (
+                    <tr key={index} className="hover:bg-green-50">
+                      <td className="p-2 border text-center">{index + 1}</td>
+                      <td className="p-2 border text-right">{t.amount.toLocaleString()} AED</td>
+                      <td className="p-2 border">{t.date}</td>
+                                            <td className="p-2 border">{t.manner}</td>
+                      <td className="p-2 border">{t.sender}</td>
+                      <td className="p-2 border">{t.receiver}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-green-100 font-bold text-green-800">
+                    <td colSpan={1} className="px-4 py-2 border text-right">Total</td>
+                    <td className="px-4 py-2 border text-right">{totalAmount.toLocaleString()} AED</td>
+                    <td colSpan={4} className="px-4 py-2 border"></td>
+                  </tr>
+                </tfoot>
+              </table>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+
+seventh
+
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import {
+  listAllUsernames,
+  load,
+  getContainerTotals,
+} from '@/lib/mockStore';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+import { Bar } from 'react-chartjs-2';
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
+
+const usdToAedRate = 3.67;
+
+function sum(list: any[], key: string): number {
+  return list.reduce((sum, item) => {
+    const value = typeof item[key] === 'string' ? Number(item[key]) : item[key];
+    return sum + (isNaN(value) ? 0 : value);
+  }, 0);
+}
+
+export default function ReportsPage() {
+  const [reportData, setReportData] = useState<any[]>([]);
+
+  useEffect(() => {
+    const usernames = listAllUsernames();
+    const allRows: any[] = [];
+
+    usernames.forEach((username) => {
+      const store = load(username);
+
+      store.containers.forEach((container) => {
+        const totals = getContainerTotals(username, container.id);
+
+        const remittances = store.remittances?.filter((r) => r.containerId === container.id) ?? [];
+        const uaeSales = store.uaeSale?.filter((s) => s.containerId === container.id) ?? [];
+
+        const saleAed = uaeSales.reduce((sum, s) => {
+          const itemTotal = s.items.reduce((s2, i) => s2 + (i.priceUsd ?? 0), 0);
+          const extras = s.port + s.rent + s.tips + s.over;
+          return sum + (itemTotal + extras) * usdToAedRate;
+        }, 0);
+
+        const paidAed = sum(remittances, 'amountUsd') * usdToAedRate;
+        const itemsAed = totals.itemsTotal * usdToAedRate;
+        const freightAed = totals.freightUsd * usdToAedRate;
+        const totalCostAed = itemsAed + freightAed;
+        const profitAed = saleAed - totalCostAed - paidAed;
+        const month = container.createdAt?.slice(0, 7) || 'Unknown';
+
+        allRows.push({
+          username,
+          code: container.code,
+          itemsAed,
+          freightAed,
+          paidAed,
+          saleAed,
+          totalCostAed,
+          profitAed,
+          month,
+        });
+      });
+    });
+
+    setReportData(allRows);
+  }, []);
+
+  const totalContainers = reportData.length;
+  const totalItemsAed = reportData.reduce((sum, r) => sum + r.itemsAed, 0);
+  const totalFreightAed = reportData.reduce((sum, r) => sum + r.freightAed, 0);
+  const totalPaidAed = reportData.reduce((sum, r) => sum + r.paidAed, 0);
+  const totalSaleAed = reportData.reduce((sum, r) => sum + r.saleAed, 0);
+  const totalProfitAed = reportData.reduce((sum, r) => sum + r.profitAed, 0);
+
+  const monthlyProfitMap: Record<string, number> = {};
+  reportData.forEach((r) => {
+    monthlyProfitMap[r.month] = (monthlyProfitMap[r.month] || 0) + r.profitAed;
+  });
+
+  const barData = {
+    labels: Object.keys(monthlyProfitMap),
+    datasets: [
+      {
+        label: 'Profit per Month (AED)',
+        data: Object.values(monthlyProfitMap),
+        backgroundColor: '#34D399',
+      },
+    ],
+  };
+
+  return (
+    <div className="p-8 max-w-7xl mx-auto">
+      <h1 className="text-4xl font-bold text-blue-700 mb-10 text-center">📊 Reports Overview</h1>
+
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-10">
+        <StatCard title="Containers" value={totalContainers} color="bg-blue-100" />
+        <StatCard title="USA Cost (AED)" value={Math.round(totalItemsAed)} color="bg-yellow-100" />
+        <StatCard title="Freight (AED)" value={Math.round(totalFreightAed)} color="bg-orange-100" />
+        <StatCard title="UAE Remittances (AED)" value={Math.round(totalPaidAed)} color="bg-green-100" />
+        <StatCard title="Total Profit (AED)" value={Math.round(totalProfitAed)} color="bg-purple-100" />
+      </div>
+
+      <div className="bg-white p-6 rounded shadow mb-12">
+        <h2 className="text-xl font-semibold text-green-600 mb-4">📈 Monthly Profit Chart</h2>
+        <Bar data={barData} />
+      </div>
+
+      <div className="bg-white p-6 rounded shadow">
+        <h2 className="text-xl font-semibold text-gray-700 mb-4">📦 Container Summary</h2>
+        <table className="w-full text-sm border border-gray-300">
+          <thead className="bg-gray-100 text-gray-700 font-bold">
+            <tr>
+              <th className="p-2 border">Code</th>
+              <th className="p-2 border">User</th>
+              <th className="p-2 border text-right">USA Cost</th>
+              <th className="p-2 border text-right">Freight</th>
+              <th className="p-2 border text-right">Remittance</th>
+              <th className="p-2 border text-right">Sale</th>
+              <th className="p-2 border text-right">Profit</th>
+              <th className="p-2 border text-right">Month</th>
+            </tr>
+          </thead>
+          <tbody>
+            {reportData.map((r, i) => (
+              <tr key={i} className="hover:bg-gray-50">
+                <td className="p-2 border">{r.code}</td>
+                <td className="p-2 border">{r.username}</td>
+                <td className="p-2 border text-right">{Math.round(r.itemsAed).toLocaleString()}</td>
+                <td className="p-2 border text-right">{Math.round(r.freightAed).toLocaleString()}</td>
+                <td className="p-2 border text-right">{Math.round(r.paidAed).toLocaleString()}</td>
+                <td className="p-2 border text-right">{Math.round(r.saleAed).toLocaleString()}</td>
+                <td className="p-2 border text-right text-green-700 font-semibold">
+                  {Math.round(r.profitAed).toLocaleString()}
+                </td>
+                <td className="p-2 border text-right">{r.month}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ title, value, color }: { title: string; value: number; color: string }) {
+  return (
+    <div className={`p-6 rounded shadow text-center ${color}`}>
+      <div className="text-sm text-gray-600">{title}</div>
+      <div className="text-2xl font-bold text-gray-800 mt-2">{value.toLocaleString()} AED</div>
+    </div>
+  );
+}
+
+
+
+eight
+
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { listAllUsernames, load } from '@/lib/mockStore';
+import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/solid';
+
+export default function SoldContainersDashboard() {
+  const [soldData, setSoldData] = useState<any[]>([]);
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [searchCode, setSearchCode] = useState('');
+  const [searchTrigger, setSearchTrigger] = useState('');
+  const usdToAedRate = 3.67;
+
+  useEffect(() => {
+    const usernames = listAllUsernames();
+    const groupedSales: Record<string, any> = {};
+
+    usernames.forEach((username) => {
+      const store = load(username);
+      store.uaeSale?.forEach((sale: any) => {
+        const container = store.containers.find((c: any) => c.id === sale.containerId);
+        if (!container) return;
+
+        const key = sale.containerId;
+        if (!groupedSales[key]) {
+          groupedSales[key] = {
+            containerCode: container.code,
+            items: [],
+            port: 0,
+            rent: 0,
+            tips: 0,
+            over: 0,
+            totalBuyUsd: 0,
+            createdAt: sale.createdAt?.slice(0, 10) || 'Unknown',
+          };
+        }
+
+        groupedSales[key].items.push(...(sale.items || []));
+        groupedSales[key].port += sale.port || 0;
+        groupedSales[key].rent += sale.rent || 0;
+        groupedSales[key].tips += sale.tips || 0;
+        groupedSales[key].over += sale.over || 0;
+        groupedSales[key].totalBuyUsd += (sale.items || []).reduce((sum: number, i: any) => sum + (i.totalUsd ?? 0), 0);
+      });
+    });
+
+    const allRows = Object.values(groupedSales).map((group: any) => {
+      const totalBuyAed = group.totalBuyUsd * usdToAedRate;
+      const totalSellAed = group.items.reduce((sum: number, i: any) => sum + (+i.salePrice || 0), 0);
+      const totalExpendAed = group.port + group.rent + group.tips + group.over;
+      const totalSet = totalBuyAed + totalExpendAed;
+      const totalBenefit = totalSellAed - totalSet;
+
+      return {
+        containerCode: group.containerCode,
+        items: group.items,
+        port: group.port,
+        rent: group.rent,
+        tips: group.tips,
+        over: group.over,
+        totalBuyAed,
+        totalSellAed,
+        totalExpendAed,
+        totalBenefit,
+        createdAt: group.createdAt,
+      };
+    });
+
+    setSoldData(allRows);
+  }, []);
+
+  const toggleAccordion = (index: number) => {
+    setOpenIndex(openIndex === index ? null : index);
+  };
+
+  const filteredData = searchTrigger.trim()
+    ? soldData.filter((sale) =>
+        sale.containerCode.toLowerCase().includes(searchTrigger.toLowerCase())
+      )
+    : soldData;
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-4xl font-bold text-green-700">Sold Containers Dashboard</h1>
+        <div className="flex">
+          <input
+            type="text"
+            placeholder="Search by container code..."
+            value={searchCode}
+            onChange={(e) => setSearchCode(e.target.value)}
+            className="border border-green-300 rounded-l px-4 py-2 w-64 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+          />
+          <button
+            onClick={() => setSearchTrigger(searchCode)}
+            className="bg-green-600 text-white px-4 py-2 rounded-r hover:bg-green-700 transition"
+          >
+            Search
+          </button>
+        </div>
+      </div>
+
+      {filteredData.length === 0 ? (
+        <div className="text-center text-gray-500">No matching containers found.</div>
+      ) : (
+        filteredData.map((sale, index) => {
+          const isOpen = openIndex === index;
+          const profitColor = sale.totalBenefit >= 0 ? 'text-green-700' : 'text-red-600';
+
+          return (
+            <div key={index} className="mb-6 border border-green-300 rounded-xl shadow-md bg-white">
+              <button
+                onClick={() => toggleAccordion(index)}
+                className="w-full px-6 py-5 flex justify-between items-center hover:bg-green-50 transition-all duration-200"
+              >
+                <div>
+                  <h2 className="text-xl font-bold text-green-800">Container: {sale.containerCode}</h2>
+                  <p className="text-sm text-gray-600">Date: {sale.createdAt}</p>
+                </div>
+                <div className="text-sm text-right text-gray-700">
+                  <p>Buy: {Math.round(sale.totalBuyAed).toLocaleString()} AED</p>
+                  <p>Sell: {Math.round(sale.totalSellAed).toLocaleString()} AED</p>
+                  <p>Expenses: {Math.round(sale.totalExpendAed).toLocaleString()} AED</p>
+                  <p className={`font-bold ${profitColor}`}>
+                    Profit: {Math.round(sale.totalBenefit).toLocaleString()} AED
+                  </p>
+                </div>
+                <div className="ml-4">
+                  {isOpen ? (
+                    <ChevronUpIcon className="h-6 w-6 text-green-600" />
+                  ) : (
+                    <ChevronDownIcon className="h-6 w-6 text-green-600" />
+                  )}
+                </div>
+              </button>
+
+              {isOpen && (
+                <div className="px-6 py-4 border-t border-green-200 bg-white animate-fade-in">
+                  <table className="w-full text-sm border border-gray-300 mb-4">
+                    <thead className="bg-gray-100 text-gray-700 font-bold">
+                      <tr>
+                        <th className="p-2 border">#</th>
+                        <th className="p-2 border">Item</th>
+                        <th className="p-2 border text-right">Sale Price (AED)</th>
+                        <th className="p-2 border">Lot Number</th>
+                        <th className="p-2 border">Note</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sale.items.map((item: any, i: number) => (
+                        <tr key={i} className="hover:bg-gray-50">
+                          <td className="p-2 border">{item.number}</td>
+                          <td className="p-2 border">{item.item}</td>
+                          <td className="p-2 border text-right">{(+item.salePrice || 0).toLocaleString()} AED</td>
+                          <td className="p-2 border">{item.lotNumber}</td>
+                          <td className="p-2 border">{item.note}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="text-sm text-gray-600">
+                    <strong>Expenses:</strong> Port: {sale.port} AED | Rent: {sale.rent} AED | Tips: {sale.tips} AED | Over: {sale.over} AED
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+
+
+ninth
+
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { listAllUsernames, load } from '@/lib/mockStore';
+
+type Transfer = {
+  containerId: string;
+  number: string;
+  amount: number;
+  date: string;
+  manner: string;
+  sender: string;
+  receiver: string;
+};
+
+export default function TransferDashboardPage() {
+  const [selectedUser, setSelectedUser] = useState('');
+  const [selectedContainerId, setSelectedContainerId] = useState('');
+  const [allTransfers, setAllTransfers] = useState<Transfer[]>([]);
+  const [filteredTransfers, setFilteredTransfers] = useState<Transfer[]>([]);
+  const [containers, setContainers] = useState<{ id: string; code: string }[]>([]);
+
+  useEffect(() => {
+    const usernames = listAllUsernames();
+    const transfers: Transfer[] = [];
+    const containerList: { id: string; code: string }[] = [];
+
+    usernames.forEach((username) => {
+      const store = load(username);
+      const userTransfers = store.moneyTransfers ?? [];
+      const userContainers = store.containers ?? [];
+
+      userTransfers.forEach((t) => transfers.push({ ...t }));
+      userContainers.forEach((c) => containerList.push({ id: c.id, code: c.code }));
+    });
+
+    setAllTransfers(transfers);
+    setContainers(containerList);
+    setFilteredTransfers(transfers);
+  }, []);
+
+  const handleUserChange = (user: string) => {
+    setSelectedUser(user);
+    applyFilter(user, selectedContainerId);
+  };
+
+  const handleContainerChange = (id: string) => {
+    setSelectedContainerId(id);
+    applyFilter(selectedUser, id);
+  };
+
+  const applyFilter = (user: string, containerId: string) => {
+    const usernames = listAllUsernames();
+    const filtered: Transfer[] = [];
+
+    usernames.forEach((username) => {
+      if (user && username !== user) return;
+      const store = load(username);
+      const userTransfers = store.moneyTransfers ?? [];
+
+      userTransfers.forEach((t) => {
+        if (!containerId || t.containerId === containerId) {
+          filtered.push({ ...t });
+        }
+      });
+    });
+
+    setFilteredTransfers(filtered);
+  };
+
+  const totalFiltered = filteredTransfers.reduce((sum, t) => sum + (t.amount || 0), 0);
+
+  return (
+    <div className="p-8 max-w-7xl mx-auto space-y-8">
+      <h1 className="text-4xl font-bold text-green-700 text-center">💸 Transfer Overview</h1>
+
+      {/* Filter Section */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Filter by User */}
+        <div className="bg-white p-4 rounded shadow border border-green-300">
+          <label className="block text-green-700 font-semibold mb-2">Filter by User</label>
+          <select
+            value={selectedUser}
+            onChange={(e) => handleUserChange(e.target.value)}
+            className="w-full border border-green-300 rounded px-3 py-2 text-green-900 shadow-sm"
+          >
+            <option value="">All Users</option>
+            {listAllUsernames().map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Filter by Container */}
+        <div className="bg-white p-4 rounded shadow border border-green-300">
+          <label className="block text-green-700 font-semibold mb-2">Filter by Container</label>
+          <select
+            value={selectedContainerId}
+            onChange={(e) => handleContainerChange(e.target.value)}
+            className="w-full border border-green-300 rounded px-3 py-2 text-green-900 shadow-sm"
+          >
+            <option value="">All Containers</option>
+            {containers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.code}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Total Filtered */}
+        <div className="bg-white p-4 rounded shadow border border-green-300 text-center">
+          <div className="text-sm text-gray-600">Total Transferred (Filtered)</div>
+          <div className="text-2xl font-bold text-green-700 mt-2">
+            {totalFiltered.toLocaleString()} AED
+          </div>
+          <div className="text-xs text-gray-500 mt-1">Based on current filters</div>
+        </div>
+
+        {/* Total by User */}
+        <div className="bg-white p-4 rounded shadow border border-green-300">
+          <div className="text-sm text-gray-600 mb-2">Total by User</div>
+          <ul className="space-y-1 text-green-800 text-sm">
+            {listAllUsernames().map((username) => {
+              const store = load(username);
+              const userTransfers = store.moneyTransfers ?? [];
+              const total = userTransfers.reduce((sum, t) => sum + (t.amount || 0), 0);
+              return (
+                <li key={username} className="flex justify-between">
+                  <span>{username}</span>
+                  <span className="font-semibold">{total.toLocaleString()} AED</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </div>
+
+      {/* Transfer Table */}
+      <div className="bg-white p-6 rounded shadow border border-green-300">
+        <h2 className="text-xl font-bold text-green-700 mb-4">📋 Transfer Table</h2>
+        {filteredTransfers.length === 0 ? (
+          <p className="text-gray-500">No transfers found.</p>
+        ) : (
+          <table className="w-full text-sm border border-gray-300">
+            <thead className="bg-green-50 text-green-700 font-bold">
+              <tr>
+                <th className="p-2 border">#</th>
+                <th className="p-2 border">Container</th>
+                <th className="p-2 border">Amount</th>
+                <th className="p-2 border">Date</th>
+                <th className="p-2 border">Manner</th>
+                <th className="p-2 border">Sender</th>
+                <th className="p-2 border">Receiver</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredTransfers.map((t, i) => (
+                <tr key={i} className="hover:bg-green-50">
+                  <td className="p-2 border text-center">{i + 1}</td>
+                  <td className="p-2 border">{containers.find((c) => c.id === t.containerId)?.code ?? '—'}</td>
+                  <td className="p-2 border text-right">{t.amount.toLocaleString()} AED</td>
+                  <td className="p-2 border">{t.date}</td>
+                  <td className="p-2 border">{t.manner}</td>
+                  <td className="p-2 border">{t.sender}</td>
+                  <td className="p-2 border">{t.receiver}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-green-100 font-bold text-green-800">
+                <td colSpan={2} className="px-4 py-2 border text-right">Total</td>
+                <td className="px-4 py-2 border text-right">{totalFiltered.toLocaleString()} AED</td>
+                <td colSpan={4} className="px-4 py-2 border"></td>
+              </tr>
+            </tfoot>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+ten
+import React from "react";
+
+const Footer = () => {
+  return (
+    <footer className="bg-black text-white mt-10 py-4 px-6">
+      <div className="flex flex-col md:flex-row items-center justify-between max-w-6xl mx-auto">
+        <p className="text-center flex-1">All Rights Reserved © 2025 | Qasim Jamal</p>
+        <button className="bg-white text-black px-4 py-1 rounded hover:bg-gray-300 mt-2 md:mt-0">
+          Back to Home
+        </button>
+      </div>
+    </footer>
+  );
+};
+
+export default Footer;
+
+eleven
+
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import ItemForm from "./ItemForm";
+import RemittanceForm from "./RemittanceForm";
+import RemittanceTable from "./RemittanceTable";
+import {
+  listItems,
+  setContainerFreight,
+  getContainerTotals,
+  listRemittances,
+  getRemittanceTotals,
+  type Container,
+  type Item,
+  type Remittance,
+} from "../../lib/mockStore";
+
+type Props = {
+  username: string;
+  container: Container;
+  onFinalize?: () => void;
+};
+
+export default function ContainerAccordion({ username, container, onFinalize }: Props) {
+  const [items, setItems] = useState<Item[]>([]);
+  const [freight, setFreight] = useState<string>("");
+  const [remittances, setRemittances] = useState<Remittance[]>([]);
+
+  useEffect(() => {
+    setItems(listItems(username, container.id));
+    setFreight(container.freightUsd != null ? String(container.freightUsd) : "");
+    setRemittances(listRemittances(username, container.id));
+  }, [username, container.id, container.freightUsd]);
+
+  const totals = useMemo(() => {
+    const t = getContainerTotals(username, container.id);
+    const inputFreight = parseFloat(freight || "0") || 0;
+    return { ...t, freightUsd: inputFreight, grandTotal: t.itemsTotal + inputFreight };
+  }, [items, freight, username, container.id]);
+
+  const remitTotals = useMemo(
+    () => getRemittanceTotals(username, container.id),
+    [remittances, username, container.id]
+  );
+
+  const remaining = useMemo(() => {
+    return totals.grandTotal - remitTotals.netPaid;
+  }, [totals.grandTotal, remitTotals.netPaid]);
+
+  const finalize = () => {
+    const f = parseFloat(freight || "0") || 0;
+    setContainerFreight(username, container.id, f);
+    onFinalize?.();
+  };
+
+  const card = "bg-white shadow-md rounded-lg p-6 space-y-4";
+
+  return (
+    <div className={card}>
+      {/* مشخصات کانتینر */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
+        <div className="bg-gray-50 border rounded p-3"><span className="font-semibold text-green-700">Code:</span> {container.code}</div>
+        <div className="bg-gray-50 border rounded p-3"><span className="font-semibold text-green-700">Status:</span> {container.status || "-"}</div>
+        <div className="bg-gray-50 border rounded p-3"><span className="font-semibold text-green-700">Origin:</span> {container.originCity || "-"}</div>
+        <div className="bg-gray-50 border rounded p-3"><span className="font-semibold text-green-700">Date:</span> {container.date || "-"}</div>
+      </div>
+
+      {/* آیتم‌ها */}
+      <div className={card}>
+        <h3 className="text-xl font-bold text-green-600">Items</h3>
+        <ItemForm
+          username={username}
+          containerId={container.id}
+          onCreated={(it) => setItems((prev) => [it, ...prev])}
+        />
+        <div className="overflow-x-auto">
+          <table className="min-w-full border text-sm">
+            <thead className="bg-gray-50">
+              <tr className="border-b">
+                <th className="text-left px-3 py-2">Number</th>
+                <th className="text-left px-3 py-2">Item</th>
+                <th className="text-left px-3 py-2">Model</th>
+                <th className="text-left px-3 py-2">Lot number</th>
+                <th className="text-right px-3 py-2">Price</th>
+                <th className="text-right px-3 py-2">Recovery</th>
+                <th className="text-right px-3 py-2">Cutting</th>
+                <th className="text-right px-3 py-2">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((row) => (
+                <tr key={row.id} className="border-b hover:bg-gray-50">
+                  <td className="px-3 py-2">{row.number || "-"}</td>
+                  <td className="px-3 py-2">{row.item || "-"}</td>
+                  <td className="px-3 py-2">{row.model || "-"}</td>
+                  <td className="px-3 py-2">{row.lotNumber || "-"}</td>
+                  <td className="px-3 py-2 text-right">{row.priceUsd ?? 0}</td>
+                  <td className="px-3 py-2 text-right">{row.recoveryUsd ?? 0}</td>
+                  <td className="px-3 py-2 text-right">{row.cuttingUsd ?? 0}</td>
+                  <td className="px-3 py-2 text-right font-semibold">{row.totalUsd ?? 0}</td>
+                </tr>
+              ))}
+              {items.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-3 py-2 text-center text-gray-500">No items yet</td>
+                </tr>
+              )}
+            </tbody>
+            {items.length > 0 && (
+              <tfoot>
+                <tr className="border-t bg-gray-50">
+                  <td className="px-3 py-2 font-semibold text-right" colSpan={7}>Items Total</td>
+                  <td className="px-3 py-2 text-right font-bold text-green-700">{totals.itemsTotal}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+
+      {/* Freight & Grand Total */}
+      <div className={card}>
+        <h3 className="text-xl font-bold text-green-600">Freight & Grand Total</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div>
+            <label className="block text-sm font-semibold text-green-700">Freight (USD)</label>
+            <input
+              type="number"
+              value={freight}
+              onChange={(e) => setFreight(e.target.value)}
+              className="w-full border rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+          <div className="bg-gray-50 border rounded p-3">
+            <div className="text-sm text-gray-600">Items Total</div>
+            <div className="text-lg font-bold text-gray-800">{totals.itemsTotal}</div>
+          </div>
+          <div className="bg-green-50 border border-green-200 rounded p-3">
+            <div className="text-sm font-semibold text-green-700">Grand Total</div>
+            <div className="text-xl font-extrabold text-green-700">{totals.grandTotal}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Remittances */}
+      <div className={card}>
+        <h3 className="text-xl font-bold text-green-600">Remittances</h3>
+        <RemittanceForm
+          username={username}
+          containerId={container.id}
+          onCreated={(r) => setRemittances((prev) => [r, ...prev])}
+        />
+        <div className="text-sm text-red-600">Remittance section loaded ✅</div>
+
+        <RemittanceTable rows={remittances} totals={remitTotals} />
+      </div>
+
+      {/* Payment Summary */}
+      <div className={card}>
+        <h3 className="text-xl font-bold text-green-600">Payment Summary</h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-gray-50 border rounded p-3">
+            <div className="text-sm text-gray-600">Items Total</div>
+            <div className="text-lg font-bold text-gray-800">{totals.itemsTotal}</div>
+          </div>
+          <div className="bg-gray-50 border rounded p-3">
+            <div className="text-sm text-gray-600">Freight</div>
+            <div className="text-lg font-bold text-gray-800">{totals.freightUsd}</div>
+          </div>
+          <div className="bg-gray-50 border rounded p-3">
+            <div className="text-sm text-gray-600">Net Paid</div>
+            <div className="text-lg font-bold text-gray-800">{remitTotals.netPaid}</div>
+          </div>
+          <div className="bg-green-50 border border-green-200 rounded p-3">
+            <div className="text-sm font-semibold text-green-700">Remaining</div>
+            <div className="text-xl font-extrabold text-green-700">{remaining}</div>
+          </div>
+        </div>
+
+        <div className="pt-4">
+          <button
+            onClick={finalize}
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+twovele 
+
+"use client";
+
+import { useState } from "react";
+import { createContainer } from "../../lib/mockStore";
+
+type Props = {
+  username: string;
+  onCreated?: (container: any) => void;
+};
+
+export default function ContainerForm({ username, onCreated }: Props) {
+  const [code, setCode] = useState("");
+  const [status, setStatus] = useState("");
+  const [originCity, setOriginCity] = useState("");
+  const [date, setDate] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr(null);
+    if (!code.trim()) {
+      setErr("Container No is required");
+      return;
+    }
+    setLoading(true);
+    try {
+      const c = createContainer(username, {
+        code: code.trim(),
+        status: status.trim() || null,
+        originCity: originCity.trim() || null,
+        date: date || null,
+      });
+      onCreated?.(c);
+      setCode("");
+      setStatus("");
+      setOriginCity("");
+      setDate("");
+    } catch (e: any) {
+      setErr(e?.message || "Failed to save");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-green-700">Container No</label>
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            className="w-full border rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+            required
+          />
+        </div>
+       <div>
+  <label className="block text-sm font-semibold text-green-700">Status</label>
+  <select
+    value={status}
+    onChange={(e) => setStatus(e.target.value)}
+    className="w-full border rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+  >
+    <option value="">Select status</option>
+    <option value="ready">Ready</option>
+    <option value="in transit">In Transit</option>
+    <option value="arrived">Arrived</option>
+    <option value="sold">Sold</option>
+  </select>
+</div>
+
+        <div>
+          <label className="block text-sm font-semibold text-green-700">Origin City (USA)</label>
+          <input
+            value={originCity}
+            onChange={(e) => setOriginCity(e.target.value)}
+            className="w-full border rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-green-700">Date</label>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full border rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+        </div>
+      </div>
+
+      {err && <p className="text-sm text-red-600">{err}</p>}
+
+      <button
+        type="submit"
+        disabled={loading}
+        className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition"
+      >
+        {loading ? "Saving..." : "Save"}
+      </button>
+    </form>
+  );
+}
+
+
+thirteen
+
+"use client"
+
+import * as React from "react"
+import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
+import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react"
+
+import { cn } from "@/lib/utils"
+
+function DropdownMenu({
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
+  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />
+}
+
+function DropdownMenuPortal({
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Portal>) {
+  return (
+    <DropdownMenuPrimitive.Portal data-slot="dropdown-menu-portal" {...props} />
+  )
+}
+
+function DropdownMenuTrigger({
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>) {
+  return (
+    <DropdownMenuPrimitive.Trigger
+      data-slot="dropdown-menu-trigger"
+      {...props}
+    />
+  )
+}
+
+function DropdownMenuContent({
+  className,
+  sideOffset = 4,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
+  return (
+    <DropdownMenuPrimitive.Portal>
+      <DropdownMenuPrimitive.Content
+        data-slot="dropdown-menu-content"
+        sideOffset={sideOffset}
+        className={cn(
+          "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-h-(--radix-dropdown-menu-content-available-height) min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border p-1 shadow-md",
+          className
+        )}
+        {...props}
+      />
+    </DropdownMenuPrimitive.Portal>
+  )
+}
+
+function DropdownMenuGroup({
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Group>) {
+  return (
+    <DropdownMenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />
+  )
+}
+
+function DropdownMenuItem({
+  className,
+  inset,
+  variant = "default",
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Item> & {
+  inset?: boolean
+  variant?: "default" | "destructive"
+}) {
+  return (
+    <DropdownMenuPrimitive.Item
+      data-slot="dropdown-menu-item"
+      data-inset={inset}
+      data-variant={variant}
+      className={cn(
+        "focus:bg-accent focus:text-accent-foreground data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 dark:data-[variant=destructive]:focus:bg-destructive/20 data-[variant=destructive]:focus:text-destructive data-[variant=destructive]:*:[svg]:!text-destructive [&_svg:not([class*='text-'])]:text-muted-foreground relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function DropdownMenuCheckboxItem({
+  className,
+  children,
+  checked,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>) {
+  return (
+    <DropdownMenuPrimitive.CheckboxItem
+      data-slot="dropdown-menu-checkbox-item"
+      className={cn(
+        "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        className
+      )}
+      checked={checked}
+      {...props}
+    >
+      <span className="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
+        <DropdownMenuPrimitive.ItemIndicator>
+          <CheckIcon className="size-4" />
+        </DropdownMenuPrimitive.ItemIndicator>
+      </span>
+      {children}
+    </DropdownMenuPrimitive.CheckboxItem>
+  )
+}
+
+function DropdownMenuRadioGroup({
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.RadioGroup>) {
+  return (
+    <DropdownMenuPrimitive.RadioGroup
+      data-slot="dropdown-menu-radio-group"
+      {...props}
+    />
+  )
+}
+
+function DropdownMenuRadioItem({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.RadioItem>) {
+  return (
+    <DropdownMenuPrimitive.RadioItem
+      data-slot="dropdown-menu-radio-item"
+      className={cn(
+        "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        className
+      )}
+      {...props}
+    >
+      <span className="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
+        <DropdownMenuPrimitive.ItemIndicator>
+          <CircleIcon className="size-2 fill-current" />
+        </DropdownMenuPrimitive.ItemIndicator>
+      </span>
+      {children}
+    </DropdownMenuPrimitive.RadioItem>
+  )
+}
+
+function DropdownMenuLabel({
+  className,
+  inset,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Label> & {
+  inset?: boolean
+}) {
+  return (
+    <DropdownMenuPrimitive.Label
+      data-slot="dropdown-menu-label"
+      data-inset={inset}
+      className={cn(
+        "px-2 py-1.5 text-sm font-medium data-[inset]:pl-8",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function DropdownMenuSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Separator>) {
+  return (
+    <DropdownMenuPrimitive.Separator
+      data-slot="dropdown-menu-separator"
+      className={cn("bg-border -mx-1 my-1 h-px", className)}
+      {...props}
+    />
+  )
+}
+
+function DropdownMenuShortcut({
+  className,
+  ...props
+}: React.ComponentProps<"span">) {
+  return (
+    <span
+      data-slot="dropdown-menu-shortcut"
+      className={cn(
+        "text-muted-foreground ml-auto text-xs tracking-widest",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function DropdownMenuSub({
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Sub>) {
+  return <DropdownMenuPrimitive.Sub data-slot="dropdown-menu-sub" {...props} />
+}
+
+function DropdownMenuSubTrigger({
+  className,
+  inset,
+  children,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.SubTrigger> & {
+  inset?: boolean
+}) {
+  return (
+    <DropdownMenuPrimitive.SubTrigger
+      data-slot="dropdown-menu-sub-trigger"
+      data-inset={inset}
+      className={cn(
+        "focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[inset]:pl-8",
+        className
+      )}
+      {...props}
+    >
+      {children}
+      <ChevronRightIcon className="ml-auto size-4" />
+    </DropdownMenuPrimitive.SubTrigger>
+  )
+}
+
+function DropdownMenuSubContent({
+  className,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
+  return (
+    <DropdownMenuPrimitive.SubContent
+      data-slot="dropdown-menu-sub-content"
+      className={cn(
+        "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-hidden rounded-md border p-1 shadow-lg",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export {
+  DropdownMenu,
+  DropdownMenuPortal,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+}
+
+
+
+
+
+fourteen
+
+"use client";
+
+import { useMemo, useState } from "react";
+import { createItem } from "../../lib/mockStore";
+
+type Props = {
+  username: string;
+  containerId: string;
+  onCreated?: (item: any) => void;
+};
+
+export default function ItemForm({ username, containerId, onCreated }: Props) {
+  const [form, setForm] = useState({
+    number: "",
+    item: "",
+    model: "",
+    lotNumber: "",
+    priceUsd: "",
+    recoveryUsd: "",
+    cuttingUsd: "",
+  });
+  const [loading, setLoading] = useState(false);
+
+  const total = useMemo(() => {
+    const p = parseFloat(form.priceUsd || "0") || 0;
+    const r = parseFloat(form.recoveryUsd || "0") || 0;
+    const c = parseFloat(form.cuttingUsd || "0") || 0;
+    return p + r + c;
+  }, [form]);
+
+  const update = (k: string, v: string) => setForm((prev) => ({ ...prev, [k]: v }));
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const created = createItem(username, containerId, {
+        number: form.number || null,
+        item: form.item || null,
+        model: form.model || null,
+        lotNumber: form.lotNumber || null,
+        priceUsd: form.priceUsd ? parseFloat(form.priceUsd) : 0,
+        recoveryUsd: form.recoveryUsd ? parseFloat(form.recoveryUsd) : 0,
+        cuttingUsd: form.cuttingUsd ? parseFloat(form.cuttingUsd) : 0,
+      } as any);
+      onCreated?.(created);
+      setForm({
+        number: "",
+        item: "",
+        model: "",
+        lotNumber: "",
+        priceUsd: "",
+        recoveryUsd: "",
+        cuttingUsd: "",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const field =
+    "w-full border rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500";
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-green-700">Number</label>
+          <input className={field} value={form.number} onChange={(e) => update("number", e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-green-700">Item</label>
+          <input className={field} value={form.item} onChange={(e) => update("item", e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-green-700">Model</label>
+          <input className={field} value={form.model} onChange={(e) => update("model", e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-green-700">Lot number</label>
+          <input className={field} value={form.lotNumber} onChange={(e) => update("lotNumber", e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-green-700">Price</label>
+          <input type="number" className={field} value={form.priceUsd} onChange={(e) => update("priceUsd", e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-green-700">Recovery</label>
+          <input type="number" className={field} value={form.recoveryUsd} onChange={(e) => update("recoveryUsd", e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-green-700">Cutting</label>
+          <input type="number" className={field} value={form.cuttingUsd} onChange={(e) => update("cuttingUsd", e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-green-700">Total</label>
+          <input className={`${field} bg-gray-50`} value={total} readOnly />
+        </div>
+      </div>
+
+      <button type="submit" disabled={loading} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition">
+        {loading ? "Adding..." : "Add Item"}
+      </button>
+    </form>
+  );
+}
+
+
+fiveteen
+"use client"
+
+import * as React from "react"
+import * as LabelPrimitive from "@radix-ui/react-label"
+
+import { cn } from "@/lib/utils"
+
+function Label({
+  className,
+  ...props
+}: React.ComponentProps<typeof LabelPrimitive.Root>) {
+  return (
+    <LabelPrimitive.Root
+      data-slot="label"
+      className={cn(
+        "flex items-center gap-2 text-sm leading-none font-medium select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export { Label }
+
+
+
+
+
+sixteen
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import ContainerForm from "./ContainerForm";
+import ItemForm from "./ItemForm";
+import { listContainers, listItems, setContainerFreight, getContainerTotals } from "../../lib/mockStore";
+import type { Container, Item } from "../../lib/mockStore";
+
+type Props = { username: string };
+
+export default function PurchasePageClient({ username }: Props) {
+  const [containers, setContainers] = useState<Container[]>([]);
+  const [current, setCurrent] = useState<Container | null>(null);
+  const [items, setItems] = useState<Item[]>([]);
+  const [freight, setFreight] = useState<string>(""); // input
+  const [loading, setLoading] = useState(true);
+
+  const reloadContainers = () => {
+    const rows = listContainers(username);
+    setContainers(rows);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    reloadContainers();
+  }, [username]);
+
+  useEffect(() => {
+    if (!current) return;
+    const rows = listItems(username, current.id);
+    setItems(rows);
+    setFreight(current.freightUsd != null ? String(current.freightUsd) : "");
+  }, [current?.id]);
+
+  const totals = useMemo(() => {
+    if (!current) return { itemsTotal: 0, freightUsd: 0, grandTotal: 0 };
+    const t = getContainerTotals(username, current.id);
+    const inputFreight = parseFloat(freight || "0") || 0;
+    // show live grand total reflecting input
+    return { ...t, freightUsd: inputFreight, grandTotal: t.itemsTotal + inputFreight };
+  }, [current?.id, items, freight]);
+
+  const onContainerCreated = (c: Container) => {
+    setContainers((prev) => [c, ...prev]);
+    setCurrent(c);
+    setItems([]);
+    setFreight("");
+  };
+
+  const finalizeAndReset = () => {
+    if (!current) return;
+    const f = parseFloat(freight || "0") || 0;
+    setContainerFreight(username, current.id, f);
+    // reset for next container
+    setCurrent(null);
+    setItems([]);
+    setFreight("");
+  };
+
+  return (
+    <main className="min-h-screen bg-gray-100 py-10 px-4">
+      <div className="max-w-5xl mx-auto space-y-8">
+        <h1 className="text-3xl font-bold text-green-600">Purchases — {username}</h1>
+
+        {/* بخش کانتینر (بالا) */}
+        <section className="bg-white shadow-lg rounded-lg p-6 space-y-4">
+          <h2 className="text-xl font-bold text-green-600">Container</h2>
+
+          {!current ? (
+            <>
+              <p className="text-sm text-gray-600">Create a new container to start adding items.</p>
+              <ContainerForm username={username} onCreated={onContainerCreated} />
+            </>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
+                <div className="bg-gray-50 border rounded p-3"><span className="font-semibold text-green-700">Code:</span> {current.code}</div>
+                <div className="bg-gray-50 border rounded p-3"><span className="font-semibold text-green-700">Status:</span> {current.status || "-"}</div>
+                <div className="bg-gray-50 border rounded p-3"><span className="font-semibold text-green-700">Origin:</span> {current.originCity || "-"}</div>
+                <div className="bg-gray-50 border rounded p-3"><span className="font-semibold text-green-700">Date:</span> {current.date || "-"}</div>
+              </div>
+              <p className="text-xs text-gray-500">Add items for this container below. When done, set Freight and press Save.</p>
+            </div>
+          )}
+        </section>
+
+        {/* بخش آیتم‌ها (پایین) */}
+        {current && (
+          <>
+            <section className="bg-white shadow-md rounded-lg p-6 space-y-4">
+              <h2 className="text-xl font-bold text-green-600">Items</h2>
+              <ItemForm
+                username={username}
+                containerId={current.id}
+                onCreated={(it) => setItems((prev) => [it, ...prev])}
+              />
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full border text-sm">
+                  <thead className="bg-gray-50">
+                    <tr className="border-b">
+                      <th className="text-left px-3 py-2">Number</th>
+                      <th className="text-left px-3 py-2">Item</th>
+                      <th className="text-left px-3 py-2">Model</th>
+                      <th className="text-left px-3 py-2">Lot number</th>
+                      <th className="text-right px-3 py-2">Price</th>
+                      <th className="text-right px-3 py-2">Recovery</th>
+                      <th className="text-right px-3 py-2">Cutting</th>
+                      <th className="text-right px-3 py-2">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((row) => (
+                      <tr key={row.id} className="border-b hover:bg-gray-50">
+                        <td className="px-3 py-2">{row.number || "-"}</td>
+                        <td className="px-3 py-2">{row.item || "-"}</td>
+                        <td className="px-3 py-2">{row.model || "-"}</td>
+                        <td className="px-3 py-2">{row.lotNumber || "-"}</td>
+                        <td className="px-3 py-2 text-right">{row.priceUsd ?? 0}</td>
+                        <td className="px-3 py-2 text-right">{row.recoveryUsd ?? 0}</td>
+                        <td className="px-3 py-2 text-right">{row.cuttingUsd ?? 0}</td>
+                        <td className="px-3 py-2 text-right font-semibold">{row.totalUsd ?? 0}</td>
+                      </tr>
+                    ))}
+                    {items.length === 0 && (
+                      <tr>
+                        <td className="px-3 py-2 text-center text-gray-500" colSpan={8}>No items yet</td>
+                      </tr>
+                    )}
+                  </tbody>
+                  {items.length > 0 && (
+                    <tfoot>
+                      <tr className="border-t bg-gray-50">
+                        <td className="px-3 py-2 font-semibold text-right" colSpan={7}>Items Total</td>
+                        <td className="px-3 py-2 text-right font-bold text-green-700">{totals.itemsTotal}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </section>
+
+            <section className="bg-white shadow-md rounded-lg p-6 space-y-4">
+              <h2 className="text-xl font-bold text-green-600">Freight & Grand Total</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <div>
+                  <label className="block text-sm font-semibold text-green-700">Freight (USD)</label>
+                  <input
+                    type="number"
+                    value={freight}
+                    onChange={(e) => setFreight(e.target.value)}
+                    className="w-full border rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+                <div className="bg-gray-50 border rounded p-3">
+                  <div className="text-sm text-gray-600">Items Total</div>
+                  <div className="text-lg font-bold text-gray-800">{totals.itemsTotal}</div>
+                </div>
+                <div className="bg-green-50 border border-green-200 rounded p-3">
+                  <div className="text-sm font-semibold text-green-700">Grand Total</div>
+                  <div className="text-xl font-extrabold text-green-700">{totals.grandTotal}</div>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  onClick={finalizeAndReset}
+                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition"
+                >
+                  Save
+                </button>
+              </div>
+            </section>
+          </>
+        )}
+
+        {/* لیست کانتینرها برای انتخاب سریع (اختیاری) */}
+        {!loading && containers.length > 0 && (
+          <section className="bg-white shadow rounded-lg p-4">
+            <h3 className="text-base font-bold text-green-600 mb-3">Existing Containers</h3>
+            <div className="flex flex-wrap gap-2">
+              {containers.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setCurrent(c)}
+                  className={`px-3 py-1 rounded border hover:bg-gray-50 transition ${
+                    current?.id === c.id ? "border-green-600 text-green-700" : "border-gray-300 text-gray-700"
+                  }`}
+                >
+                  {c.code}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+    </main>
+  );
+}
+
+
+seventeen
+
+"use client";
+
+import { useState } from "react";
+import { createRemittance } from "../../lib/mockStore";
+
+type Props = {
+  username: string;
+  containerId: string;
+  onCreated?: (r: any) => void;
+};
+
+export default function RemittanceForm({ username, containerId, onCreated }: Props) {
+  const [form, setForm] = useState({
+    date: "",
+    method: "Hawala",
+    reference: "",
+    amountUsd: "",
+    feeUsd: "",
+    notes: "",
+  });
+  const [loading, setLoading] = useState(false);
+
+  const field = "w-full border rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500";
+
+  const update = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const created = createRemittance(username, containerId, {
+        date: form.date || new Date().toISOString().slice(0, 10),
+        method: form.method,
+        reference: form.reference || null,
+        amountUsd: form.amountUsd ? parseFloat(form.amountUsd) : 0,
+        feeUsd: form.feeUsd ? parseFloat(form.feeUsd) : 0,
+        notes: form.notes || null,
+      } as any);
+      onCreated?.(created);
+      setForm({ date: "", method: "Hawala", reference: "", amountUsd: "", feeUsd: "", notes: "" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-green-700">Date</label>
+          <input type="date" className={field} value={form.date} onChange={(e) => update("date", e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-green-700">Method</label>
+          <select className={field} value={form.method} onChange={(e) => update("method", e.target.value)}>
+            <option>Hawala</option>
+            <option>Bank</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-green-700">Reference</label>
+          <input className={field} value={form.reference} onChange={(e) => update("reference", e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-green-700">Amount (USD)</label>
+          <input type="number" className={field} value={form.amountUsd} onChange={(e) => update("amountUsd", e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-green-700">Fee (USD)</label>
+          <input type="number" className={field} value={form.feeUsd} onChange={(e) => update("feeUsd", e.target.value)} />
+        </div>
+        <div className="md:col-span-3">
+          <label className="block text-sm font-semibold text-green-700">Notes</label>
+          <textarea className={field} value={form.notes} onChange={(e) => update("notes", e.target.value)} />
+        </div>
+      </div>
+
+      <button type="submit" disabled={loading} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition">
+        {loading ? "Adding..." : "Add Remittance"}
+      </button>
+    </form>
+  );
+}
+
+
+eighten
+
+"use client";
+
+import type { Remittance } from "../../lib/mockStore";
+
+type Props = {
+  rows: Remittance[];
+  totals: { totalAmount: number; totalFee: number; netPaid: number };
+};
+
+export default function RemittanceTable({ rows, totals }: Props) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full border text-sm">
+        <thead className="bg-gray-50">
+          <tr className="border-b">
+            <th className="text-left px-3 py-2">Date</th>
+            <th className="text-left px-3 py-2">Method</th>
+            <th className="text-left px-3 py-2">Reference</th>
+            <th className="text-right px-3 py-2">Amount</th>
+            <th className="text-right px-3 py-2">Fee</th>
+            <th className="text-right px-3 py-2">Net</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const net = (r.amountUsd || 0) - (r.feeUsd || 0);
+            return (
+              <tr key={r.id} className="border-b hover:bg-gray-50">
+                <td className="px-3 py-2">{r.date}</td>
+                <td className="px-3 py-2">{r.method}</td>
+                <td className="px-3 py-2">{r.reference || "-"}</td>
+                <td className="px-3 py-2 text-right">{r.amountUsd ?? 0}</td>
+                <td className="px-3 py-2 text-right">{r.feeUsd ?? 0}</td>
+                <td className="px-3 py-2 text-right font-semibold">{net}</td>
+              </tr>
+            );
+          })}
+          {rows.length === 0 && (
+            <tr>
+              <td className="px-3 py-2 text-center text-gray-500" colSpan={6}>No remittances yet</td>
+            </tr>
+          )}
+        </tbody>
+        {rows.length > 0 && (
+          <tfoot>
+            <tr className="border-t bg-gray-50">
+              <td className="px-3 py-2 font-semibold text-right" colSpan={3}>Totals</td>
+              <td className="px-3 py-2 text-right font-semibold">{totals.totalAmount}</td>
+              <td className="px-3 py-2 text-right font-semibold">{totals.totalFee}</td>
+              <td className="px-3 py-2 text-right font-bold text-green-700">{totals.netPaid}</td>
+            </tr>
+          </tfoot>
+        )}
+      </table>
+    </div>
+  );
+}
+
+
+
+
+
+ninethen
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
