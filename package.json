@@ -1,0 +1,57 @@
+{
+  "name": "car-system",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:seed": "prisma db seed",
+    "db:reset": "prisma migrate reset && prisma db seed",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@next-auth/prisma-adapter": "^1.0.7",
+    "@prisma/client": "^6.16.1",
+    "@types/pg": "^8.15.5",
+    "autoprefixer": "^10.4.21",
+    "bcrypt": "^5.1.1",
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^16.4.5",
+    "next": "^14.2.32",
+    "next-auth": "^4.24.11",
+    "pdf-lib": "^1.17.1",
+    "pdfkit": "^0.17.2",
+    "pg": "^8.16.3",
+    "postcss": "^8.5.6",
+    "prisma": "^6.15.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-is": "^19.1.1",
+    "recharts": "^3.1.2",
+    "tailwindcss": "^3.4.17"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.0.0",
+    "@types/bcrypt": "^6.0.0",
+    "@types/node": "^20.19.17",
+    "@types/pdfkit": "^0.17.3",
+    "@types/react": "^18.3.24",
+    "@types/react-dom": "^18.3.7",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.2.32",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}

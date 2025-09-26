@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  role      String
+  name      String
+  isActive  Boolean  @default(true) // اضافه شده
+  createdAt DateTime @default(now())
+
+  purchaseContainers PurchaseContainer[]
+  uaeSales           UAESale[]
+  uaeExpends         UAEExpend[]
+  vendors            Vendor[]
+  sentTransfers      Transfer[] @relation("SentTransfers")
+  receivedTransfers  Transfer[] @relation("ReceivedTransfers")
+  documents          Document[] @relation("UserDocuments")
+
+  @@map("users")
+}
+
+model Vendor {
+  id                 String   @id @default(cuid())
+  companyName        String
+  companyAddress     String
+  representativeName String
+  email              String
+  phone              String
+  country            String   @default("USA")
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  containers         PurchaseContainer[]
+  transfers          Transfer[]
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("vendors")
+}
+
+model PurchaseContainer {
+  id          String            @id @default(cuid())
+  containerId String
+  status      String
+  city        String
+  date        String
+  rent        Float
+  grandTotal  Float
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vendorId    String
+  vendor      Vendor            @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  contents    PurchaseContent[]
+  uaeSales    UAESale[]
+  uaeExpends  UAEExpend[]
+  transfers   Transfer[]
+  documents   Document[]        @relation("ContainerDocuments")
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@map("purchase_containers")
+}
+
+// اضافه کردن فیلد year به مدل PurchaseContent
+model PurchaseContent {
+  id          String            @id @default(cuid())
+  number      Int
+  item        String
+  model       String
+  year        String           // اضافه شده
+  lotNumber   String
+  price       Float
+  recovery    Float
+  cutting     Float
+  total       Float
+  containerId String
+  container   PurchaseContainer @relation(fields: [containerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime          @default(now())
+
+  @@map("purchase_contents")
+}
+
+model UAESale {
+  id          String            @id @default(cuid())
+  number      Int
+  item        String
+  salePrice   Float
+  lotNumber   String
+  note        String
+  containerId String
+  container   PurchaseContainer @relation(fields: [containerId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime          @default(now())
+
+  @@map("uae_sales")
+}
+
+model UAEExpend {
+  id          String            @id @default(cuid())
+  category    String
+  amount      Float
+  description String
+  containerId String
+  container   PurchaseContainer @relation(fields: [containerId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime          @default(now())
+
+  @@map("uae_expends")
+}
+
+model Transfer {
+  id          String            @id @default(cuid())
+  senderId    String
+  sender      User              @relation("SentTransfers", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId  String
+  receiver    User              @relation("ReceivedTransfers", fields: [receiverId], references: [id], onDelete: Cascade)
+  amount      Float
+  containerId String
+  container   PurchaseContainer @relation(fields: [containerId], references: [id], onDelete: Cascade)
+  vendorId    String?
+  vendor      Vendor?           @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  type        String // Bank or Hand
+  date        String
+  description String?
+  documents   Document[]        @relation("TransferDocuments")
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@map("transfers")
+}
+
+model Document {
+  id           String              @id @default(cuid())
+  filename     String
+  originalName String
+  path         String
+  type         String // purchase, sale, transfer
+  containerId  String?
+  container    PurchaseContainer?  @relation("ContainerDocuments", fields: [containerId], references: [id], onDelete: Cascade)
+  transferId   String?
+  transfer     Transfer?           @relation("TransferDocuments", fields: [transferId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User                @relation("UserDocuments", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@map("documents")
+}
