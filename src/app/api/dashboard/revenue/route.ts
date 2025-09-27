@@ -1,4 +1,3 @@
-// app/api/dashboard/revenue/route.ts
 import { NextResponse } from 'next/server';
 import prisma from '../../../../lib/database';
 
@@ -40,7 +39,12 @@ export async function GET(request: Request) {
       }
     });
 
-    // Get expenses data for the same period
+    // اگر داده‌ای وجود ندارد، آرایه خالی برگردانید
+    if (salesData.length === 0) {
+      return NextResponse.json([]);
+    }
+
+    // بقیه محاسبات...
     const expensesData = await prisma.uAEExpend.groupBy({
       by: ['createdAt'],
       _sum: {
@@ -56,7 +60,6 @@ export async function GET(request: Request) {
       }
     });
 
-    // Get USA purchase costs for the same period
     const purchaseData = await prisma.purchaseContainer.findMany({
       where: {
         createdAt: {
@@ -74,7 +77,7 @@ export async function GET(request: Request) {
 
     // Process sales data
     salesData.forEach(sale => {
-      const monthKey = sale.createdAt.toISOString().slice(0, 7); // YYYY-MM format
+      const monthKey = sale.createdAt.toISOString().slice(0, 7);
       if (!monthlyData[monthKey]) {
         monthlyData[monthKey] = { revenue: 0, cost: 0 };
       }
@@ -90,7 +93,7 @@ export async function GET(request: Request) {
       monthlyData[monthKey].cost += expense._sum.amount || 0;
     });
 
-    // Process USA purchase costs (convert to AED)
+    // Process USA purchase costs
     purchaseData.forEach(purchase => {
       const monthKey = purchase.createdAt.toISOString().slice(0, 7);
       if (!monthlyData[monthKey]) {
@@ -110,26 +113,10 @@ export async function GET(request: Request) {
       };
     });
 
-    // If no data, return sample data for demonstration
-    if (chartData.length === 0) {
-      return NextResponse.json([
-        { month: 'Jan', revenue: 45000, profit: 15000, cost: 30000 },
-        { month: 'Feb', revenue: 52000, profit: 18000, cost: 34000 },
-        { month: 'Mar', revenue: 48000, profit: 16000, cost: 32000 },
-        { month: 'Apr', revenue: 61000, profit: 22000, cost: 39000 },
-      ]);
-    }
-
     return NextResponse.json(chartData);
   } catch (error) {
     console.error('Revenue data error:', error);
-    
-    // Return sample data in case of error
-    return NextResponse.json([
-      { month: 'Jan', revenue: 45000, profit: 15000, cost: 30000 },
-      { month: 'Feb', revenue: 52000, profit: 18000, cost: 34000 },
-      { month: 'Mar', revenue: 48000, profit: 16000, cost: 32000 },
-      { month: 'Apr', revenue: 61000, profit: 22000, cost: 39000 },
-    ]);
+    // در صورت خطا، آرایه خالی برگردانید
+    return NextResponse.json([]);
   }
 }

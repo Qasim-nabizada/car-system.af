@@ -1,4 +1,3 @@
-// app/api/dashboard/profit-by-category/route.ts
 import { NextResponse } from 'next/server';
 import prisma from '../../../../lib/database';
 
@@ -15,6 +14,11 @@ export async function GET() {
         }
       }
     });
+
+    // اگر هیچ کانتینری وجود ندارد، آرایه خالی برگردانید
+    if (containers.length === 0) {
+      return NextResponse.json([]);
+    }
 
     const profitByStatus: { [key: string]: number } = {};
 
@@ -40,10 +44,7 @@ export async function GET() {
     return NextResponse.json(chartData);
   } catch (error) {
     console.error('Profit by category error:', error);
-    return NextResponse.json([
-      { category: 'Pending', profit: 15000, color: '#F59E0B' },
-      { category: 'Shipped', profit: 28000, color: '#3B82F6' },
-      { category: 'Completed', profit: 45000, color: '#10B981' }
-    ]);
+    // در صورت خطا، آرایه خالی برگردانید
+    return NextResponse.json([]);
   }
 }

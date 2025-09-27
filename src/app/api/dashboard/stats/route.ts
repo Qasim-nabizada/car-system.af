@@ -1,10 +1,9 @@
-// app/api/dashboard/stats/route.ts
 import { NextResponse } from 'next/server';
 import prisma from '../../../../lib/database';
 
 export async function GET() {
   try {
-    // Get counts
+    // Get counts - فقط داده‌های واقعی
     const [
       totalVendors,
       totalUsers,
@@ -24,17 +23,15 @@ export async function GET() {
       prisma.purchaseContainer.count({ where: { status: 'pending' } }),
       prisma.purchaseContainer.count({ where: { status: 'shipped' } }),
       prisma.purchaseContainer.count({ where: { status: 'completed' } }),
-      // Calculate total sales revenue
       prisma.uAESale.aggregate({
         _sum: { salePrice: true }
       }),
-      // Calculate total expenses
       prisma.uAEExpend.aggregate({
         _sum: { amount: true }
       })
     ]);
 
-    // Calculate total USA purchase costs (grandTotal from containers)
+    // Calculate total USA purchase costs
     const usaPurchaseCosts = await prisma.purchaseContainer.aggregate({
       _sum: { grandTotal: true }
     });
@@ -43,7 +40,7 @@ export async function GET() {
     const totalUAEExpenses = totalExpends._sum.amount || 0;
     const totalUSACosts = usaPurchaseCosts._sum.grandTotal || 0;
     
-    // Convert USD to AED (assuming 1 USD = 3.67 AED)
+    // Convert USD to AED (1 USD = 3.67 AED)
     const totalUSACostsAED = totalUSACosts * 3.67;
     
     const totalCosts = totalUAEExpenses + totalUSACostsAED;
@@ -80,6 +77,19 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Dashboard stats error:', error);
-    return NextResponse.json({ error: 'Failed to load dashboard stats' }, { status: 500 });
+    // در صورت خطا، مقادیر صفر برگردانید
+    return NextResponse.json({
+      totalVendors: 0,
+      totalUsers: 0,
+      totalContainers: 0,
+      pendingContainers: 0,
+      shippedContainers: 0,
+      completedContainers: 0,
+      totalRevenue: 0,
+      totalCosts: 0,
+      netProfit: 0,
+      profitMargin: 0,
+      monthlyRevenue: 0
+    });
   }
 }
