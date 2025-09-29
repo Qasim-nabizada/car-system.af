@@ -1265,7 +1265,7 @@ const deleteContainer = async (containerId: string) => {
       
       {/* SN */}
       <div className="min-w-[60px]">
-        <label className="block text-green-200 mb-1 text-xs">SN</label>
+        <label className="block text-green-200 mb-1 ">SN</label>
         <input
           type="number"
           value={item.number}
@@ -1276,7 +1276,7 @@ const deleteContainer = async (containerId: string) => {
       
       {/* Lot # */}
       <div className="min-w-[80px]">
-        <label className="block text-green-200 mb-1 text-xs">Lot #</label>
+        <label className="block text-green-200 mb-1 ">Lot #</label>
         <input
           type="text"
           value={item.lotNumber}
