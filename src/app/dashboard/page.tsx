@@ -287,26 +287,7 @@ export default function Dashboard() {
               </div>
             </div>
             
-            <div className="flex gap-3 flex-wrap">
-              <Link 
-                href="/usa-purchase"
-                className="bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-700 hover:to-emerald-600 text-white px-4 py-2 rounded-lg transition duration-200 font-semibold text-sm"
-              >
-                USA Purchase
-              </Link>
-              <Link 
-                href="/uae-sales"
-                className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white px-4 py-2 rounded-lg transition duration-200 font-semibold text-sm"
-              >
-                UAE Sales
-              </Link>
-              <Link 
-                href="/sold-containers"
-                className="bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white px-4 py-2 rounded-lg transition duration-200 font-semibold text-sm"
-              >
-                Sold Containers
-              </Link>
-            </div>
+    
           </div>
 
           {/* Statistics Cards */}
