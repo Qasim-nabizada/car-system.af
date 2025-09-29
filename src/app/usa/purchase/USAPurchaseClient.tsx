@@ -1247,7 +1247,7 @@ const deleteContainer = async (containerId: string) => {
 
 const renderContentItems = () => {
   return currentContents.map((item, index) => (
-    <div key={index} className="grid grid-cols-2 md:grid-cols-11 gap-3 mb-6 p-4 bg-green-700 rounded-lg border border-green-600 relative">
+    <div key={index} className="grid grid-cols-11 gap-2 mb-6 p-4 bg-green-700 rounded-lg border border-green-600 relative items-center">
       
       {/* دکمه حذف */}
       <button
@@ -1265,105 +1265,105 @@ const renderContentItems = () => {
       </button>
       
       {/* SN */}
-      <div>
-        <label className="block text-green-200 mb-2">SN</label>
+      <div className="flex flex-col">
+        <label className="block text-green-200 mb-2 text-center">SN</label>
         <input
           type="number"
           value={item.number}
           onChange={(e) => updateContentItem(index, 'number', e.target.value)}
-          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400 text-center"
         />
       </div>
       
       {/* Lot # */}
-      <div>
-        <label className="block text-green-200 mb-2">Lot #</label>
+      <div className="flex flex-col">
+        <label className="block text-green-200 mb-2 text-center">Lot #</label>
         <input
           type="text"
           value={item.lotNumber}
           onChange={(e) => updateContentItem(index, 'lotNumber', e.target.value)}
-          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400 text-center"
         />
       </div>
       
       {/* Make */}
-      <div>
-        <label className="block text-green-200 mb-2">Make</label>
+      <div className="flex flex-col">
+        <label className="block text-green-200 mb-2 text-center">Make</label>
         <input
           type="text"
           value={item.item}
           onChange={(e) => updateContentItem(index, 'item', e.target.value)}
-          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400 text-center"
         />
       </div>
       
       {/* Model */}
-      <div>
-        <label className="block text-green-200 mb-2">Model</label>
+      <div className="flex flex-col">
+        <label className="block text-green-200 mb-2 text-center">Model</label>
         <input
           type="text"
           value={item.model}
           onChange={(e) => updateContentItem(index, 'model', e.target.value)}
-          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400 text-center"
         />
       </div>
       
       {/* Year */}
-      <div>
-        <label className="block text-green-200 mb-2">Year</label>
+      <div className="flex flex-col">
+        <label className="block text-green-200 mb-2 text-center">Year</label>
         <input
           type="text"
           value={item.year}
           onChange={(e) => updateContentItem(index, 'year', e.target.value)}
-          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400 text-center"
           placeholder="Year"
         />
       </div>
       
       {/* Price */}
-      <div>
-        <label className="block text-green-200 mb-2">Price ($)</label>
+      <div className="flex flex-col">
+        <label className="block text-green-200 mb-2 text-center">Price ($)</label>
         <input
           type="number"
           value={item.price}
           onChange={(e) => updateContentItem(index, 'price', e.target.value === '' ? '' : Number(e.target.value))}
-          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400 text-center"
           placeholder="Enter price"
         />
       </div>
       
       {/* Recovery */}
-      <div>
-        <label className="block text-green-200 mb-2">Recovery ($)</label>
+      <div className="flex flex-col">
+        <label className="block text-green-200 mb-2 text-center">Recovery ($)</label>
         <input
           type="number"
           value={item.recovery}
           onChange={(e) => updateContentItem(index, 'recovery', e.target.value === '' ? '' : Number(e.target.value))}
-          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400 text-center"
           placeholder="Enter recovery"
         />
       </div>
       
       {/* Cutting */}
-      <div>
-        <label className="block text-green-200 mb-2">Cutting ($)</label>
+      <div className="flex flex-col">
+        <label className="block text-green-200 mb-2 text-center">Cutting ($)</label>
         <input
           type="number"
           value={item.cutting}
           onChange={(e) => updateContentItem(index, 'cutting', e.target.value === '' ? '' : Number(e.target.value))}
-          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400 text-center"
           placeholder="Enter cutting"
         />
       </div>
       
       {/* Total */}
-      <div>
-        <label className="block text-green-200 mb-2">Total ($)</label>
+      <div className="flex flex-col">
+        <label className="block text-green-200 mb-2 text-center">Total ($)</label>
         <input
           type="number"
           value={item.total}
           readOnly
-          className="w-full p-2 rounded-lg bg-green-700 text-white border border-green-600 cursor-not-allowed"
+          className="w-full p-2 rounded-lg bg-green-700 text-white border border-green-600 cursor-not-allowed text-center"
         />
       </div>
     </div>
