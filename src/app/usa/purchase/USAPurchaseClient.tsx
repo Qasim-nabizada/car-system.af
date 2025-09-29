@@ -1247,7 +1247,7 @@ const deleteContainer = async (containerId: string) => {
 
 const renderContentItems = () => {
   return currentContents.map((item, index) => (
-    <div key={index} className="mb-6 p-4 bg-green-700 rounded-lg border border-green-600 relative">
+    <div key={index} className="grid grid-cols-11 gap-2 mb-6 p-4 bg-green-700 rounded-lg border border-green-600 relative items-center">
       
       {/* دکمه حذف */}
       <button
@@ -1264,112 +1264,107 @@ const renderContentItems = () => {
         ×
       </button>
       
-      {/* Container با اسکرول افقی */}
-      <div className="flex space-x-4 overflow-x-auto pb-2">
-        
-        {/* SN */}
-        <div className="flex-shrink-0 w-16">
-          <label className="block text-green-200 mb-2">SN</label>
-          <input
-            type="number"
-            value={item.number}
-            onChange={(e) => updateContentItem(index, 'number', e.target.value)}
-            className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-          />
-        </div>
-        
-        {/* Lot # */}
-        <div className="flex-shrink-0 w-20">
-          <label className="block text-green-200 mb-2">Lot #</label>
-          <input
-            type="text"
-            value={item.lotNumber}
-            onChange={(e) => updateContentItem(index, 'lotNumber', e.target.value)}
-            className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-          />
-        </div>
-        
-        {/* Make */}
-        <div className="flex-shrink-0 w-24">
-          <label className="block text-green-200 mb-2">Make</label>
-          <input
-            type="text"
-            value={item.item}
-            onChange={(e) => updateContentItem(index, 'item', e.target.value)}
-            className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-          />
-        </div>
-        
-        {/* Model */}
-        <div className="flex-shrink-0 w-24">
-          <label className="block text-green-200 mb-2">Model</label>
-          <input
-            type="text"
-            value={item.model}
-            onChange={(e) => updateContentItem(index, 'model', e.target.value)}
-            className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-          />
-        </div>
-        
-        {/* Year */}
-        <div className="flex-shrink-0 w-20">
-          <label className="block text-green-200 mb-2">Year</label>
-          <input
-            type="text"
-            value={item.year}
-            onChange={(e) => updateContentItem(index, 'year', e.target.value)}
-            className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-            placeholder="Year"
-          />
-        </div>
-        
-        {/* Price */}
-        <div className="flex-shrink-0 w-28">
-          <label className="block text-green-200 mb-2">Price ($)</label>
-          <input
-            type="number"
-            value={item.price}
-            onChange={(e) => updateContentItem(index, 'price', e.target.value === '' ? '' : Number(e.target.value))}
-            className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-            placeholder="Price"
-          />
-        </div>
-        
-        {/* Recovery */}
-        <div className="flex-shrink-0 w-28">
-          <label className="block text-green-200 mb-2">Recovery ($)</label>
-          <input
-            type="number"
-            value={item.recovery}
-            onChange={(e) => updateContentItem(index, 'recovery', e.target.value === '' ? '' : Number(e.target.value))}
-            className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-            placeholder="Recovery"
-          />
-        </div>
-        
-        {/* Cutting */}
-        <div className="flex-shrink-0 w-28">
-          <label className="block text-green-200 mb-2">Cutting ($)</label>
-          <input
-            type="number"
-            value={item.cutting}
-            onChange={(e) => updateContentItem(index, 'cutting', e.target.value === '' ? '' : Number(e.target.value))}
-            className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-            placeholder="Cutting"
-          />
-        </div>
-        
-        {/* Total */}
-        <div className="flex-shrink-0 w-28">
-          <label className="block text-green-200 mb-2">Total ($)</label>
-          <input
-            type="number"
-            value={item.total}
-            readOnly
-            className="w-full p-2 rounded-lg bg-green-700 text-white border border-green-600 cursor-not-allowed"
-          />
-        </div>
-        
+      {/* SN */}
+      <div className="flex flex-col">
+        <label className="block text-green-200 mb-1 text-sm text-center">SN</label>
+        <input
+          type="number"
+          value={item.number}
+          onChange={(e) => updateContentItem(index, 'number', e.target.value)}
+          className="w-full p-2 rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400 text-center"
+        />
+      </div>
+      
+      {/* Lot # */}
+      <div className="flex flex-col">
+        <label className="block text-green-200 mb-1 text-sm text-center">Lot #</label>
+        <input
+          type="text"
+          value={item.lotNumber}
+          onChange={(e) => updateContentItem(index, 'lotNumber', e.target.value)}
+          className="w-full p-2 rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400 text-center"
+        />
+      </div>
+      
+      {/* Make */}
+      <div className="flex flex-col">
+        <label className="block text-green-200 mb-1 text-sm text-center">Make</label>
+        <input
+          type="text"
+          value={item.item}
+          onChange={(e) => updateContentItem(index, 'item', e.target.value)}
+          className="w-full p-2 rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400 text-center"
+        />
+      </div>
+      
+      {/* Model */}
+      <div className="flex flex-col">
+        <label className="block text-green-200 mb-1 text-sm text-center">Model</label>
+        <input
+          type="text"
+          value={item.model}
+          onChange={(e) => updateContentItem(index, 'model', e.target.value)}
+          className="w-full p-2 rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400 text-center"
+        />
+      </div>
+      
+      {/* Year */}
+      <div className="flex flex-col">
+        <label className="block text-green-200 mb-1 text-sm text-center">Year</label>
+        <input
+          type="text"
+          value={item.year}
+          onChange={(e) => updateContentItem(index, 'year', e.target.value)}
+          className="w-full p-2 rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400 text-center"
+          placeholder="Year"
+        />
+      </div>
+      
+      {/* Price */}
+      <div className="flex flex-col">
+        <label className="block text-green-200 mb-1 text-sm text-center">Price ($)</label>
+        <input
+          type="number"
+          value={item.price}
+          onChange={(e) => updateContentItem(index, 'price', e.target.value === '' ? '' : Number(e.target.value))}
+          className="w-full p-2 rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400 text-center"
+          placeholder="Price"
+        />
+      </div>
+      
+      {/* Recovery */}
+      <div className="flex flex-col">
+        <label className="block text-green-200 mb-1 text-sm text-center">Recovery ($)</label>
+        <input
+          type="number"
+          value={item.recovery}
+          onChange={(e) => updateContentItem(index, 'recovery', e.target.value === '' ? '' : Number(e.target.value))}
+          className="w-full p-2 rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400 text-center"
+          placeholder="Recovery"
+        />
+      </div>
+      
+      {/* Cutting */}
+      <div className="flex flex-col">
+        <label className="block text-green-200 mb-1 text-sm text-center">Cutting ($)</label>
+        <input
+          type="number"
+          value={item.cutting}
+          onChange={(e) => updateContentItem(index, 'cutting', e.target.value === '' ? '' : Number(e.target.value))}
+          className="w-full p-2 rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400 text-center"
+          placeholder="Cutting"
+        />
+      </div>
+      
+      {/* Total */}
+      <div className="flex flex-col">
+        <label className="block text-green-200 mb-1 text-sm text-center">Total ($)</label>
+        <input
+          type="number"
+          value={item.total}
+          readOnly
+          className="w-full p-2 rounded bg-green-700 text-white border border-green-600 cursor-not-allowed text-center"
+        />
       </div>
     </div>
   ));
