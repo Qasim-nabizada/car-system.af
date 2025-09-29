@@ -1245,9 +1245,10 @@ const deleteContainer = async (containerId: string) => {
     }
   };
 
- const renderContentItems = () => {
+const renderContentItems = () => {
   return currentContents.map((item, index) => (
-    <div key={index} className="grid grid-cols-1 md:grid-cols-10 gap-2 mb-4 p-4 bg-green-700 rounded-lg border border-green-600 relative">
+    <div key={index} className="grid grid-cols-2 md:grid-cols-11 gap-3 mb-6 p-4 bg-green-700 rounded-lg border border-green-600 relative">
+      
       {/* دکمه حذف */}
       <button
         onClick={() => {
@@ -1264,112 +1265,110 @@ const deleteContainer = async (containerId: string) => {
       </button>
       
       {/* SN */}
-      <div className="min-w-[60px]">
-        <label className="block text-green-200 mb-1 ">SN</label>
+      <div>
+        <label className="block text-green-200 mb-2">SN</label>
         <input
           type="number"
           value={item.number}
           onChange={(e) => updateContentItem(index, 'number', e.target.value)}
-          className="w-full p-1 text-sm rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
         />
       </div>
       
       {/* Lot # */}
-      <div className="min-w-[80px]">
-        <label className="block text-green-200 mb-1 ">Lot #</label>
+      <div>
+        <label className="block text-green-200 mb-2">Lot #</label>
         <input
           type="text"
           value={item.lotNumber}
           onChange={(e) => updateContentItem(index, 'lotNumber', e.target.value)}
-          className="w-full p-1 text-sm rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
         />
       </div>
       
       {/* Make */}
-      <div className="min-w-[100px]">
-        <label className="block text-green-200 mb-1 text-xs">Make</label>
+      <div>
+        <label className="block text-green-200 mb-2">Make</label>
         <input
           type="text"
           value={item.item}
           onChange={(e) => updateContentItem(index, 'item', e.target.value)}
-          className="w-full p-1 text-sm rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
         />
       </div>
       
       {/* Model */}
-      <div className="min-w-[100px]">
-        <label className="block text-green-200 mb-1 text-xs">Model</label>
+      <div>
+        <label className="block text-green-200 mb-2">Model</label>
         <input
           type="text"
           value={item.model}
           onChange={(e) => updateContentItem(index, 'model', e.target.value)}
-          className="w-full p-1 text-sm rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
         />
       </div>
       
       {/* Year */}
-      <div className="min-w-[70px]">
-        <label className="block text-green-200 mb-1 text-xs">Year</label>
+      <div>
+        <label className="block text-green-200 mb-2">Year</label>
         <input
           type="text"
           value={item.year}
           onChange={(e) => updateContentItem(index, 'year', e.target.value)}
-          className="w-full p-1 text-sm rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
           placeholder="Year"
         />
       </div>
       
       {/* Price */}
-      <div className="min-w-[100px]">
-        <label className="block text-green-200 mb-1 text-xs">Price ($)</label>
+      <div>
+        <label className="block text-green-200 mb-2">Price ($)</label>
         <input
           type="number"
           value={item.price}
           onChange={(e) => updateContentItem(index, 'price', e.target.value === '' ? '' : Number(e.target.value))}
-          className="w-full p-1 text-sm rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-          placeholder="Price"
+          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          placeholder="Enter price"
         />
       </div>
       
       {/* Recovery */}
-      <div className="min-w-[100px]">
-        <label className="block text-green-200 mb-1 text-xs">Recovery ($)</label>
+      <div>
+        <label className="block text-green-200 mb-2">Recovery ($)</label>
         <input
           type="number"
           value={item.recovery}
           onChange={(e) => updateContentItem(index, 'recovery', e.target.value === '' ? '' : Number(e.target.value))}
-          className="w-full p-1 text-sm rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-          placeholder="Recovery"
+          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          placeholder="Enter recovery"
         />
       </div>
       
       {/* Cutting */}
-      <div className="min-w-[100px]">
-        <label className="block text-green-200 mb-1 text-xs">Cutting ($)</label>
+      <div>
+        <label className="block text-green-200 mb-2">Cutting ($)</label>
         <input
           type="number"
           value={item.cutting}
           onChange={(e) => updateContentItem(index, 'cutting', e.target.value === '' ? '' : Number(e.target.value))}
-          className="w-full p-1 text-sm rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-          placeholder="Cutting"
+          className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          placeholder="Enter cutting"
         />
       </div>
       
       {/* Total */}
-      <div className="min-w-[100px]">
-        <label className="block text-green-200 mb-1 text-xs">Total ($)</label>
+      <div>
+        <label className="block text-green-200 mb-2">Total ($)</label>
         <input
           type="number"
           value={item.total}
           readOnly
-          className="w-full p-1 text-sm rounded bg-green-700 text-white border border-green-600 cursor-not-allowed"
+          className="w-full p-2 rounded-lg bg-green-700 text-white border border-green-600 cursor-not-allowed"
         />
       </div>
     </div>
   ));
 };
-
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-700 to-green-600 text-white flex flex-col">
       <Navbar />
