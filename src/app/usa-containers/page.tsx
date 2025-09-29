@@ -506,7 +506,7 @@ const loadContainerDocuments = async (containerId: string) => {
               <th>Model</th>
               <th>Year</th>
               <th>Price ($)</th>
-              <th>Fines ($)</th>
+              <th>Recovery ($)</th>
               <th>Cutting ($)</th>
               <th>Total ($)</th>
             </tr>

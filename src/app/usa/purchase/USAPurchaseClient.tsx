@@ -1331,7 +1331,7 @@ const deleteContainer = async (containerId: string) => {
             value={item.recovery}
             onChange={(e) => updateContentItem(index, 'recovery', e.target.value === '' ? '' : Number(e.target.value))}
             className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-            placeholder="Enter fines"
+            placeholder="Enter recovery"
           />
         </div>
         
