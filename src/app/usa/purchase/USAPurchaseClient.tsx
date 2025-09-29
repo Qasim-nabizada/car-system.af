@@ -1097,7 +1097,7 @@ const deleteContainer = async (containerId: string) => {
               <th>Model</th>
               <th>Year</th>
               <th>Price ($)</th>
-              <th>Fines ($)</th>
+              <th>Recovery ($)</th>
               <th>Cutting ($)</th>
               <th>Total ($)</th>
             </tr>
@@ -1324,11 +1324,9 @@ const deleteContainer = async (containerId: string) => {
           />
         </div>
         
-        <div>
-      <label className="block text-green-200 mb-2">
-  <span className="inline-block align-middle">Recovery ($)</span>
-</label>
-          <input
+        <div className="min-w-[100px]">
+        <label className="block text-green-200 mb-1 text-xs">Recovery ($)</label>
+        <input
             type="number"
             value={item.recovery}
             onChange={(e) => updateContentItem(index, 'recovery', e.target.value === '' ? '' : Number(e.target.value))}
@@ -2038,7 +2036,7 @@ const deleteContainer = async (containerId: string) => {
                                     <th className="p-2 text-left">Model</th>
                                     <th className="p-2 text-left">Year</th>
                                     <th className="p-2 text-left">Price</th>
-                                    <th className="p-2 text-left">Fines</th>
+                                   <th className="p-2 text-left">Recovery</th>
                                     <th className="p-2 text-left">Cutting</th>
                                     <th className="p-2 text-left">Total</th>
                                     <th className="p-2 text-left">Actions</th>
