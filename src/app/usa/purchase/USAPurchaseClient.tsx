@@ -1325,7 +1325,7 @@ const deleteContainer = async (containerId: string) => {
         </div>
         
         <div>
-          <label className="block text-green-200 mb-2">Fines ($)</label>
+         <label className="block text-green-200 mb-2">Recovery ($)</label>
           <input
             type="number"
             value={item.recovery}
