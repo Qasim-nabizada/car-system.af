@@ -1245,119 +1245,130 @@ const deleteContainer = async (containerId: string) => {
     }
   };
 
-  const renderContentItems = () => {
-    return currentContents.map((item, index) => (
-      <div key={index} className="grid grid-cols-1 md:grid-cols-10 gap-4 mb-6 p-4 bg-green-700 rounded-lg border border-green-600 relative">
-        <button
-          onClick={() => {
-            if (editMode && item.id) {
-              deleteContentItem(item.id, editingContainer!.id);
-            } else {
-              setCurrentContents(prev => prev.filter((_, i) => i !== index));
-            }
-          }}
-          className="absolute -top-2 -right-2 bg-red-600 hover:bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs"
-          title="Delete item"
-        >
-          ×
-        </button>
-        
-        <div>
-          <label className="block text-green-200 mb-2">SN</label>
-          <input
-            type="number"
-            value={item.number}
-            onChange={(e) => updateContentItem(index, 'number', e.target.value)}
-            className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-green-200 mb-2">Lot #</label>
-          <input
-            type="text"
-            value={item.lotNumber}
-            onChange={(e) => updateContentItem(index, 'lotNumber', e.target.value)}
-            className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-green-200 mb-2">Make</label>
-          <input
-            type="text"
-            value={item.item}
-            onChange={(e) => updateContentItem(index, 'item', e.target.value)}
-            className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-green-200 mb-2">Model</label>
-          <input
-            type="text"
-            value={item.model}
-            onChange={(e) => updateContentItem(index, 'model', e.target.value)}
-            className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-green-200 mb-2">Year</label>
-          <input
-            type="text"
-            value={item.year}
-            onChange={(e) => updateContentItem(index, 'year', e.target.value)}
-            className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-            placeholder="Year"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-green-200 mb-2">Price ($)</label>
-          <input
-            type="number"
-            value={item.price}
-            onChange={(e) => updateContentItem(index, 'price', e.target.value === '' ? '' : Number(e.target.value))}
-            className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-            placeholder="Enter price"
-          />
-        </div>
-        
-        <div className="min-w-[100px]">
+ const renderContentItems = () => {
+  return currentContents.map((item, index) => (
+    <div key={index} className="grid grid-cols-1 md:grid-cols-10 gap-2 mb-4 p-4 bg-green-700 rounded-lg border border-green-600 relative">
+      {/* دکمه حذف */}
+      <button
+        onClick={() => {
+          if (editMode && item.id) {
+            deleteContentItem(item.id, editingContainer!.id);
+          } else {
+            setCurrentContents(prev => prev.filter((_, i) => i !== index));
+          }
+        }}
+        className="absolute -top-2 -right-2 bg-red-600 hover:bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs"
+        title="Delete item"
+      >
+        ×
+      </button>
+      
+      {/* SN */}
+      <div className="min-w-[60px]">
+        <label className="block text-green-200 mb-1 text-xs">SN</label>
+        <input
+          type="number"
+          value={item.number}
+          onChange={(e) => updateContentItem(index, 'number', e.target.value)}
+          className="w-full p-1 text-sm rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+        />
+      </div>
+      
+      {/* Lot # */}
+      <div className="min-w-[80px]">
+        <label className="block text-green-200 mb-1 text-xs">Lot #</label>
+        <input
+          type="text"
+          value={item.lotNumber}
+          onChange={(e) => updateContentItem(index, 'lotNumber', e.target.value)}
+          className="w-full p-1 text-sm rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+        />
+      </div>
+      
+      {/* Make */}
+      <div className="min-w-[100px]">
+        <label className="block text-green-200 mb-1 text-xs">Make</label>
+        <input
+          type="text"
+          value={item.item}
+          onChange={(e) => updateContentItem(index, 'item', e.target.value)}
+          className="w-full p-1 text-sm rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+        />
+      </div>
+      
+      {/* Model */}
+      <div className="min-w-[100px]">
+        <label className="block text-green-200 mb-1 text-xs">Model</label>
+        <input
+          type="text"
+          value={item.model}
+          onChange={(e) => updateContentItem(index, 'model', e.target.value)}
+          className="w-full p-1 text-sm rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+        />
+      </div>
+      
+      {/* Year */}
+      <div className="min-w-[70px]">
+        <label className="block text-green-200 mb-1 text-xs">Year</label>
+        <input
+          type="text"
+          value={item.year}
+          onChange={(e) => updateContentItem(index, 'year', e.target.value)}
+          className="w-full p-1 text-sm rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          placeholder="Year"
+        />
+      </div>
+      
+      {/* Price */}
+      <div className="min-w-[100px]">
+        <label className="block text-green-200 mb-1 text-xs">Price ($)</label>
+        <input
+          type="number"
+          value={item.price}
+          onChange={(e) => updateContentItem(index, 'price', e.target.value === '' ? '' : Number(e.target.value))}
+          className="w-full p-1 text-sm rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          placeholder="Price"
+        />
+      </div>
+      
+      {/* Recovery */}
+      <div className="min-w-[100px]">
         <label className="block text-green-200 mb-1 text-xs">Recovery ($)</label>
         <input
-            type="number"
-            value={item.recovery}
-            onChange={(e) => updateContentItem(index, 'recovery', e.target.value === '' ? '' : Number(e.target.value))}
-            className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-            placeholder="Enter recovery"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-green-200 mb-2">Cutting ($)</label>
-          <input
-            type="number"
-            value={item.cutting}
-            onChange={(e) => updateContentItem(index, 'cutting', e.target.value === '' ? '' : Number(e.target.value))}
-            className="w-full p-2 rounded-lg bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
-            placeholder="Enter cutting"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-green-200 mb-2">Total ($)</label>
-          <input
-            type="number"
-            value={item.total}
-            readOnly
-            className="w-full p-2 rounded-lg bg-green-700 text-white border border-green-600 cursor-not-allowed"
-          />
-        </div>
+          type="number"
+          value={item.recovery}
+          onChange={(e) => updateContentItem(index, 'recovery', e.target.value === '' ? '' : Number(e.target.value))}
+          className="w-full p-1 text-sm rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          placeholder="Recovery"
+        />
       </div>
-    ));
-  };
+      
+      {/* Cutting */}
+      <div className="min-w-[100px]">
+        <label className="block text-green-200 mb-1 text-xs">Cutting ($)</label>
+        <input
+          type="number"
+          value={item.cutting}
+          onChange={(e) => updateContentItem(index, 'cutting', e.target.value === '' ? '' : Number(e.target.value))}
+          className="w-full p-1 text-sm rounded bg-green-600 text-white border border-green-500 focus:outline-none focus:border-green-400"
+          placeholder="Cutting"
+        />
+      </div>
+      
+      {/* Total */}
+      <div className="min-w-[100px]">
+        <label className="block text-green-200 mb-1 text-xs">Total ($)</label>
+        <input
+          type="number"
+          value={item.total}
+          readOnly
+          className="w-full p-1 text-sm rounded bg-green-700 text-white border border-green-600 cursor-not-allowed"
+        />
+      </div>
+    </div>
+  ));
+};
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-700 to-green-600 text-white flex flex-col">
