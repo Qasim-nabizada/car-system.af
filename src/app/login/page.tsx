@@ -11,7 +11,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
     setLoading(true);
@@ -46,6 +46,7 @@ export default function LoginPage() {
           console.log("Session data:", sessionData);
           
           if (sessionData?.user?.role === 'manager') {
+            // مدیران به داشبورد می‌روند
             router.push('/dashboard');
           } else if (sessionData?.user?.role === 'user') {
             // Check if user is active
@@ -55,8 +56,10 @@ export default function LoginPage() {
               await fetch('/api/auth/signout', { method: 'POST' });
               return;
             }
+            // کاربران عادی مستقیماً به صفحه خرید آمریکا می‌روند
             router.push('/usa/purchase');
           } else {
+            // برای سایر موارد به داشبورد
             router.push('/dashboard');
           }
         } catch (sessionError) {

@@ -20,12 +20,16 @@ export async function GET(request: NextRequest) {
     const all = searchParams.get('all') === 'true';
     const include = searchParams.get('include');
 
-    let where = {};
+     let where = {};
     if (!all && session.user.role !== 'manager') {
       where = { userId: session.user.id };
     }
 
-    let includeRelations: any = {};
+    // اصلاح بخش includeRelations
+    let includeRelations: any = {
+      vendor: true, // همیشه vendor را شامل شود
+    };
+    
     if (include) {
       const relations = include.split(',');
       if (relations.includes('user')) includeRelations.user = true;
@@ -35,6 +39,11 @@ export async function GET(request: NextRequest) {
           orderBy: { number: 'asc' }
         };
       }
+    } else {
+      // به طور پیش‌فرض contents را هم شامل شود
+      includeRelations.contents = {
+        orderBy: { number: 'asc' }
+      };
     }
 
     const containers = await prisma.purchaseContainer.findMany({

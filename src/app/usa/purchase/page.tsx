@@ -12,11 +12,9 @@ export default async function USAPurchasePage() {
     redirect('/login');
   }
 
-  // اگر مدیر است به dashboard هدایت شود
-  if (session.user.role === 'manager') {
-    redirect('/dashboard');
-  }
-
-  // فقط کاربران معمولی می‌توانند بمانند
+  // مدیران و کاربران عادی هر دو می‌توانند وارد صفحه purchase شوند
+  // حذف شرط ریدایرکت برای مدیران
+  console.log('🎯 USAPurchasePage - User:', session.user.name, 'Role:', session.user.role);
+  
   return <USAPurchaseClient session={session} />;
 }

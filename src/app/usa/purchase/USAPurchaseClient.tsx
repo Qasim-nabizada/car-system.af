@@ -15,6 +15,7 @@ interface Vendor {
   userId: string;
   createdAt?: string;
   updatedAt?: string;
+
 }
 
 interface ContainerData {
@@ -57,6 +58,8 @@ interface Document {
   type: string;
   containerId: string;
   createdAt: string;
+  originalName?: string;  // اضافه کردن
+  path?: string; 
 }
 
 interface SessionUser {
@@ -161,6 +164,13 @@ function Footer() {
 
 export default function USAPurchaseClient({ session }: { session: Session }) {
   const [step, setStep] = useState<'vendors' | 'container' | 'contents' | 'containers'>('vendors');
+  
+
+
+
+
+
+  
 
   const [myTransfers, setMyTransfers] = useState<any[]>([]);
   const [loadingTransfers, setLoadingTransfers] = useState(false);
@@ -173,6 +183,9 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
     date: new Date().toISOString().split('T')[0],
     vendorId: ''
   });
+
+
+  
   
   const [currentContents, setCurrentContents] = useState<ContentData[]>([]);
   const [rent, setRent] = useState<number | ''>('');
@@ -213,6 +226,7 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
 
   // State for document upload
   const [uploadedDocuments, setUploadedDocuments] = useState<File[]>([]);
+  
 
   useEffect(() => {
     loadVendors();
@@ -225,6 +239,10 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
       searchContainers();
     }
   }, [step, containers]);
+
+
+
+  
 
   useEffect(() => {
     if (containers.length > 0) {
@@ -278,30 +296,41 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
   };
 
   const loadContainers = async () => {
-    try {
-      const response = await fetch('/api/purchase/containers');
-      if (response.ok) {
-        const data = await response.json();
-        setContainers(data);
-      } else {
-        console.error('Failed to load containers:', response.status);
-      }
-    } catch (error) {
-      console.error('Error loading containers:', error);
+  try {
+    // اضافه کردن پارامتر include برای دریافت contents و vendor
+    const response = await fetch('/api/purchase/containers?include=contents,vendor');
+    if (response.ok) {
+      const data = await response.json();
+      console.log('📦 Loaded containers:', data.length);
+      console.log('📋 Sample container contents:', data[0]?.contents?.length || 0);
+      setContainers(data);
+    } else {
+      console.error('Failed to load containers:', response.status);
+      const errorText = await response.text();
+      console.error('Error details:', errorText);
     }
-  };
+  } catch (error) {
+    console.error('Error loading containers:', error);
+  }
+};
 
-  const loadContainerDocuments = async (containerId: string) => {
-    try {
-      const response = await fetch(`/api/documents?containerId=${containerId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setDocuments(data);
-      }
-    } catch (error) {
-      console.error('Error loading documents:', error);
+const loadContainerDocuments = async (containerId: string) => {
+  try {
+    const response = await fetch(`/api/documents?containerId=${containerId}`);
+    if (response.ok) {
+      const data = await response.json();
+      // فیلتر کردن اسناد معتبر
+      const validDocuments = data.filter((doc: any) => doc && doc.id && (doc.name || doc.originalName));
+      setDocuments(validDocuments);
+    } else {
+      console.error('Failed to load documents:', response.status);
+      setDocuments([]);
     }
-  };
+  } catch (error) {
+    console.error('Error loading documents:', error);
+    setDocuments([]);
+  }
+};
 
   const handleVendorSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -561,31 +590,36 @@ export default function USAPurchaseClient({ session }: { session: Session }) {
     setSearchResults(results);
   };
 
-  const editContainer = (container: ContainerWithContents) => {
-    setEditingContainer(container);
-    setCurrentContainer({
-      containerId: container.containerId,
-      status: container.status,
-      city: container.city,
-      date: container.date,
-      vendorId: container.vendorId
-    });
-    
+const editContainer = (container: ContainerWithContents) => {
+  console.log('📝 Editing container:', container);
+  console.log('📋 Container contents:', container.contents);
+  
+  setEditingContainer(container);
+  setCurrentContainer({
+    containerId: container.containerId,
+    status: container.status,
+    city: container.city,
+    date: container.date,
+    vendorId: container.vendorId
+  });
 
-    
-// Ensure container exists and has contents
-const contentsWithEmptyStrings = container.contents?.map(item => ({
-  ...item,
-  price: item.price === 0 ? '' : item.price,
-  recovery: item.recovery === 0 ? '' : item.recovery,
-})) || [];
+  // اصلاح بخش تبدیل مقادیر عددی
+  const contentsWithEmptyStrings = (container.contents || []).map(item => ({
+    ...item,
+    id: item.id, // حفظ ID برای ویرایش
+    price: item.price === 0 || item.price === null ? '' : item.price,
+    recovery: item.recovery === 0 || item.recovery === null ? '' : item.recovery,
+    cutting: item.cutting === 0 || item.cutting === null ? '' : item.cutting,
+    total: item.total === 0 || item.total === null ? '' : item.total
+  }));
 
-
-    setCurrentContents(contentsWithEmptyStrings);
-    setRent(container.rent === 0 ? '' : container.rent);
-    setEditMode(true);
-    setStep('contents');
-  };
+  console.log('🔄 Processed contents for editing:', contentsWithEmptyStrings);
+  
+  setCurrentContents(contentsWithEmptyStrings);
+  setRent(container.rent === 0 || container.rent === null ? '' : container.rent);
+  setEditMode(true);
+  setStep('contents');
+};
 
   const updateContainer = async () => {
     if (!editingContainer) return;
@@ -809,41 +843,37 @@ const deleteContainer = async (containerId: string) => {
     }
   };
 
-  const deleteDocument = async (documentId: string) => {
-    if (!confirm('Are you sure you want to delete this document?')) {
-      return;
-    }
+ const deleteDocument = async (documentId: string) => {
+  if (!confirm('Are you sure you want to delete this document?')) {
+    return;
+  }
 
-    try {
-      const response = await fetch(`/api/documents/${documentId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      if (response.ok) {
-        setDocuments(prev => prev.filter(doc => doc.id !== documentId));
-        alert('Document deleted successfully!');
-      } else {
-        const errorMessage = await handleApiError(response, 'Failed to delete document');
-        
-        // اگر خطای 404 باشد، سند از قبل حذف شده است
-        if (response.status === 404) {
-          alert('Document not found. It may have already been deleted.');
-          // بارگذاری مجدد اسناد
-          if (selectedContainerForDocs) {
-            loadContainerDocuments(selectedContainerForDocs.id);
-          }
-        } else {
-          alert(`Error deleting document: ${errorMessage}`);
-        }
-      }
-    } catch (error) {
-      console.error('Error deleting document:', error);
-      alert('Error deleting document. Check console for details.');
+  try {
+    console.log('🗑️ Deleting document:', documentId);
+    
+    // روش ساده‌تر - فقط با DELETE
+    const response = await fetch(`/api/documents/${documentId}`, {
+      method: 'DELETE',
+    });
+    
+    if (response.ok) {
+      // حذف از state
+      setDocuments(prev => prev.filter(doc => doc.id !== documentId));
+      alert('✅ Document deleted successfully!');
+    } else if (response.status === 404) {
+      // اگر سند پیدا نشد، از state حذف کن
+      setDocuments(prev => prev.filter(doc => doc.id !== documentId));
+      alert('ℹ️ Document was already deleted.');
+    } else {
+      const errorText = await response.text();
+      console.error('❌ Delete error:', errorText);
+      alert(`❌ Failed to delete document: ${response.status}`);
     }
-  };
+  } catch (error) {
+    console.error('❌ Error deleting document:', error);
+    alert('❌ Network error deleting document.');
+  }
+};
 
   // تابع جایگزین برای حذف سند با POST
   const deleteDocumentWithPost = async (documentId: string) => {
@@ -868,7 +898,7 @@ const deleteContainer = async (containerId: string) => {
     }
   };
 
- const viewMyTransfers = async () => {
+const viewMyTransfers = async () => {
   try {
     setTransfersLoading(true);
     
@@ -880,87 +910,103 @@ const deleteContainer = async (containerId: string) => {
     
     if (response.ok) {
       const data = await response.json();
-      console.log('✅ Transfers data:', data);
+      console.log('✅ All transfers data:', data);
+      
+      // لاگ senderهای مختلف
+      const uniqueSenders = [...new Set(data.map((t: any) => t.sender?.name))];
+      console.log('👥 Unique senders found:', uniqueSenders);
+      
+      // لاگ هر ترانسفر با sender آن
+      data.forEach((transfer: any, index: number) => {
+        console.log(`📋 Transfer ${index + 1}:`, {
+          id: transfer.id,
+          senderId: transfer.senderId,
+          senderName: transfer.sender?.name,
+          receiverId: transfer.receiverId,
+          receiverName: transfer.receiver?.name,
+          amount: transfer.amount
+        });
+      });
+      
       setUserTransfers(data);
       setShowTransfersModal(true);
     } else {
       const errorText = await response.text();
       console.error('❌ API Error:', errorText);
-      alert(`Error: ${response.status} - Failed to load transfers`);
     }
   } catch (error) {
     console.error('❌ Error fetching transfers:', error);
-    alert('Error loading transfers. Check console for details.');
   } finally {
     setTransfersLoading(false);
   }
 };
   const printTransfer = (transfer: Transfer) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) return;
 
-    const printContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Transfer Receipt - ${transfer.container.containerId}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
-          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
-          .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-          .info-item { margin-bottom: 10px; }
-          .label { font-weight: bold; color: #333; }
-          .documents { margin-top: 30px; }
-          .document-item { margin-bottom: 10px; padding: 10px; background: #f5f5f5; border-radius: 5px; }
-          @media print {
-            body { margin: 0; }
-            .no-print { display: none; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>Al Raya Used Auto Spare Trading LLC</h1>
-          <h2>Money Transfer Receipt</h2>
-          <p>Generated on: ${new Date().toLocaleDateString()}</p>
+  const printContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Transfer Receipt - ${transfer.container.containerId}</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .info-item { margin-bottom: 10px; }
+        .label { font-weight: bold; color: #333; }
+        .documents { margin-top: 30px; }
+        .document-item { margin-bottom: 10px; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+        @media print {
+          body { margin: 0; }
+          .no-print { display: none; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Al Raya Used Auto Spare Trading LLC</h1>
+        <h2>Money Transfer Receipt</h2>
+        <p>Generated on: ${new Date().toLocaleDateString()}</p>
+      </div>
+      
+      <div class="info-grid">
+        <div>
+          <div class="info-item"><span class="label">Transfer Date:</span> ${transfer.date}</div>
+          <div class="info-item"><span class="label">Sender:</span> ${transfer.sender?.name || 'N/A'}</div>
+          <div class="info-item"><span class="label">Container ID:</span> ${transfer.container.containerId}</div>
+          <div class="info-item"><span class="label">Vendor:</span> ${transfer.vendor?.companyName || 'N/A'}</div>
         </div>
-        
-        <div class="info-grid">
-          <div>
-            <div class="info-item"><span class="label">Transfer Date:</span> ${transfer.date}</div>
-            <div class="info-item"><span class="label">Container ID:</span> ${transfer.container.containerId}</div>
-            <div class="info-item"><span class="label">Vendor:</span> ${transfer.vendor?.companyName || 'N/A'}</div>
-          </div>
-          <div>
-            <div class="info-item"><span class="label">Amount:</span> $${transfer.amount.toLocaleString()}</div>
-            <div class="info-item"><span class="label">Transfer Type:</span> ${transfer.type}</div>
-            <div class="info-item"><span class="label">Description:</span> ${transfer.description || 'N/A'}</div>
-          </div>
+        <div>
+          <div class="info-item"><span class="label">Amount:</span> $${transfer.amount.toLocaleString()}</div>
+          <div class="info-item"><span class="label">Transfer Type:</span> ${transfer.type}</div>
+          <div class="info-item"><span class="label">Description:</span> ${transfer.description || 'N/A'}</div>
         </div>
-        
-        ${transfer.documents && transfer.documents.length > 0 ? `
-          <div class="documents">
-            <h3>Attached Documents (${transfer.documents.length})</h3>
-            ${transfer.documents.map((doc: any) => `
-              <div class="document-item">
-                <strong>${doc.originalName}</strong><br>
-                Uploaded: ${new Date(doc.createdAt).toLocaleDateString()}
-              </div>
-            `).join('')}
-          </div>
-        ` : ''}
-        
-        <div class="no-print" style="margin-top: 40px; text-align: center;">
-          <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">Print</button>
-          <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">Close</button>
+      </div>
+      
+      ${transfer.documents && transfer.documents.length > 0 ? `
+        <div class="documents">
+          <h3>Attached Documents (${transfer.documents.length})</h3>
+          ${transfer.documents.map((doc: any) => `
+            <div class="document-item">
+              <strong>${doc.originalName}</strong><br>
+              Uploaded: ${new Date(doc.createdAt).toLocaleDateString()}
+            </div>
+          `).join('')}
         </div>
-      </body>
-      </html>
-    `;
+      ` : ''}
+      
+      <div class="no-print" style="margin-top: 40px; text-align: center;">
+        <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">Print</button>
+        <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">Close</button>
+      </div>
+    </body>
+    </html>
+  `;
 
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-  };
+  printWindow.document.write(printContent);
+  printWindow.document.close();
+};
 
   const viewTransferDetails = (transfer: Transfer) => {
     const detailsWindow = window.open('', '_blank');
@@ -1981,104 +2027,117 @@ const renderContentItems = () => {
                           <div className="mt-4">
                             <h5 className="text-green-200 font-semibold mb-2">Documents:</h5>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                              {documents.map((doc) => {
-                                const isImage = doc.name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-                                const isPDF = doc.name.match(/\.(pdf)$/i);
-                                
-                                return (
-                                  <div key={doc.id} className="bg-green-700 p-3 rounded-lg">
-                                    <div className="flex justify-between items-start mb-2">
-                                      <span className="text-white text-sm truncate flex-1" title={doc.name}>
-                                        {doc.name}
-                                      </span>
-                                      <div className="flex gap-2 ml-2">
-                                        <a 
-                                          href={doc.url} 
-                                          target="_blank" 
-                                          rel="noopener noreferrer"
-                                          className="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-xs"
-                                        >
-                                          {isImage ? 'View' : isPDF ? 'Open' : 'Download'}
-                                        </a>
-                                        <button
-                                          onClick={() => deleteDocument(doc.id)}
-                                          className="bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded text-xs"
-                                        >
-                                          Delete
-                                        </button>
-                                      </div>
-                                    </div>
-                                    
-                                    {isImage && (
-                                      <div className="mt-2">
-                                        <img 
-                                          src={doc.url} 
-                                          alt={doc.name}
-                                          className="w-full h-32 object-cover rounded-lg"
-                                          onError={(e) => {
-                                            e.currentTarget.style.display = 'none';
-                                          }}
-                                        />
-                                      </div>
-                                    )}
-                                    
-                                    <div className="text-xs text-green-300 mt-2">
-                                      Uploaded: {new Date(doc.createdAt).toLocaleDateString()}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+  {documents.map((doc) => {
+    // ایمن‌سازی چک کردن نوع فایل
+     const document = doc as any;
+    const fileName = document?.name || document?.originalName || 'document';
+    const isImage = fileName.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+    const isPDF = fileName.match(/\.(pdf)$/i);
+     return (
+      <div key={doc.id} className="bg-green-700 p-3 rounded-lg">
+        <div className="flex justify-between items-start mb-2">
+          <span className="text-white text-sm truncate flex-1" title={fileName}>
+            {fileName}
+          </span>
+          <div className="flex gap-2 ml-2">
+            <a 
+              href={document.url || document.path} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-xs"
+            >
+              {isImage ? 'View' : isPDF ? 'Open' : 'Download'}
+            </a>
+            <button
+              onClick={() => deleteDocument(doc.id)}
+              className="bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded text-xs"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+        
+        {isImage && (
+          <div className="mt-2">
+            <img 
+              src={document.url || document.path} 
+              alt={fileName}
+              className="w-full h-32 object-cover rounded-lg"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          </div>
+        )}
+        
+        <div className="text-xs text-green-300 mt-2">
+          Uploaded: {doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : 'Unknown date'}
+        </div>
+      </div>
+    );
+  })}
+</div>
+</div>
+</div>
+</div>
                         )}
                         
                         {/* Container Contents */}
-                        {selectedContainer && selectedContainer.id === container.id && (
-                          <div className="mt-4">
-                            <h5 className="text-green-200 font-semibold mb-2">Contents:</h5>
-                            <div className="overflow-x-auto">
-                              <table className="w-full bg-green-700 rounded-lg">
-                                <thead>
-                                  <tr className="bg-green-800">
-                                    <th className="p-2 text-left">SN</th>
-                                    <th className="p-2 text-left">Lot #</th>
-                                    <th className="p-2 text-left">Make</th>
-                                    <th className="p-2 text-left">Model</th>
-                                    <th className="p-2 text-left">Year</th>
-                                    <th className="p-2 text-left">Price</th>
-                                   <th className="p-2 text-left">Recovery</th>
-                                    <th className="p-2 text-left">Cutting</th>
-                                    <th className="p-2 text-left">Total</th>
-                                    <th className="p-2 text-left">Actions</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                 {(container.contents || []).map((content, index) => (
-                                <tr key={content.id || index} className="border-b border-green-700">
-                                <td className="p-2">{content.number}</td>
-                                <td className="p-2">{content.lotNumber}</td>
-                                      <td className="p-2">{content.item}</td>
-                                      <td className="p-2">{content.model}</td>
-                                      <td className="p-2">{content.year}</td>
-                                      <td className="p-2">${typeof content.price === 'number' ? content.price.toLocaleString() : '0'}</td>
-                                      <td className="p-2">${typeof content.recovery === 'number' ? content.recovery.toLocaleString() : '0'}</td>
-                                      <td className="p-2">${typeof content.cutting === 'number' ? content.cutting.toLocaleString() : '0'}</td>
-                                      <td className="p-2">${typeof content.total === 'number' ? content.total.toLocaleString() : '0'}</td>
-                                      <td className="p-2">
-                                        <button
-                                          onClick={() => content.id && deleteContentItem(content.id, container.id)}
-                                          className="bg-red-500 hover:bg-red-400 text-white px-2 py-1 rounded text-xs"
-                                        >
-                                          Delete
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        )}
+                  {selectedContainer && selectedContainer.id === container.id && (
+  <div className="mt-4">
+    <h5 className="text-green-200 font-semibold mb-2">
+      Contents ({container.contents?.length || 0} items):
+    </h5>
+    <div className="overflow-x-auto">
+      <table className="w-full bg-green-700 rounded-lg">
+        <thead>
+          <tr className="bg-green-800">
+            <th className="p-2 text-left">SN</th>
+            <th className="p-2 text-left">Lot #</th>
+            <th className="p-2 text-left">Make</th>
+            <th className="p-2 text-left">Model</th>
+            <th className="p-2 text-left">Year</th>
+            <th className="p-2 text-left">Price</th>
+            <th className="p-2 text-left">Recovery</th>
+            <th className="p-2 text-left">Cutting</th>
+            <th className="p-2 text-left">Total</th>
+            <th className="p-2 text-left">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(container.contents || []).map((content, index) => (
+            <tr key={content.id || index} className="border-b border-green-700">
+              <td className="p-2">{content.number}</td>
+              <td className="p-2">{content.lotNumber}</td>
+              <td className="p-2">{content.item}</td>
+              <td className="p-2">{content.model}</td>
+              <td className="p-2">{content.year}</td>
+              <td className="p-2">${typeof content.price === 'number' ? content.price.toLocaleString() : '0'}</td>
+              <td className="p-2">${typeof content.recovery === 'number' ? content.recovery.toLocaleString() : '0'}</td>
+              <td className="p-2">${typeof content.cutting === 'number' ? content.cutting.toLocaleString() : '0'}</td>
+              <td className="p-2">${typeof content.total === 'number' ? content.total.toLocaleString() : '0'}</td>
+              <td className="p-2">
+                <button
+                  onClick={() => content.id && deleteContentItem(content.id, container.id)}
+                  className="bg-red-500 hover:bg-red-400 text-white px-2 py-1 rounded text-xs"
+                >
+                  Delete
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    
+    {/* اگر محتوایی وجود ندارد پیام نمایش دهید */}
+    {(container.contents || []).length === 0 && (
+      <p className="text-green-300 text-center py-4">No contents found for this container.</p>
+    )}
+  </div>
+)}
                       </div>
                     ))}
                   </div>
@@ -2265,82 +2324,100 @@ const renderContentItems = () => {
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full bg-green-700 rounded-lg border border-green-600">
-                    <thead>
-                      <tr className="bg-green-600">
-                        <th className="p-3 text-left text-green-200 font-semibold">Date</th>
-                        <th className="p-3 text-left text-green-200 font-semibold">Vendor</th>
-                        <th className="p-3 text-left text-green-200 font-semibold">Container</th>
-                        <th className="p-3 text-left text-green-200 font-semibold">Amount</th>
-                        <th className="p-3 text-left text-green-200 font-semibold">Type</th>
-                        <th className="p-3 text-left text-green-200 font-semibold">Documents</th>
-                        <th className="p-3 text-left text-green-200 font-semibold">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {userTransfers.map((transfer) => (
-                        <tr key={transfer.id} className="border-b border-green-600 hover:bg-green-700">
-                          <td className="p-3 text-white">{transfer.date}</td>
-                          <td className="p-3 text-white font-semibold">
-                            {transfer.vendor?.companyName || 'Unknown Vendor'}
-                          </td>
-                          <td className="p-3 text-white font-mono">{transfer.container.containerId}</td>
-                          <td className="p-3 text-green-300 font-bold">
-                            ${transfer.amount.toLocaleString()}
-                          </td>
-                          <td className="p-3">
-                            <span className={`px-2 py-1 rounded-full text-xs ${
-                              transfer.type === 'Bank' 
-                                ? 'bg-blue-100 text-blue-800' 
-                                : transfer.type === 'Cash'
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-orange-100 text-orange-800'
-                            }`}>
-                              {transfer.type}
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            {transfer.documents && transfer.documents.length > 0 ? (
-                              <div className="space-y-1">
-                                {transfer.documents.map((doc) => (
-                                  <a 
-                                    key={doc.id}
-                                    href={doc.path} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="text-blue-300 hover:text-blue-200 text-sm flex items-center"
-                                    title={doc.originalName}
-                                  >
-                                    📎 {doc.originalName.length > 20 
-                                      ? doc.originalName.substring(0, 20) + '...' 
-                                      : doc.originalName}
-                                  </a>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-gray-400 text-sm">No documents</span>
-                            )}
-                          </td>
-                          <td className="p-3">
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => printTransfer(transfer)}
-                                className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm"
-                              >
-                                Print
-                              </button>
-                              <button
-                                onClick={() => viewTransferDetails(transfer)}
-                                className="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm"
-                              >
-                                Details
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+               // در بخش جدول My Transfers Modal
+<table className="w-full bg-green-700 rounded-lg border border-green-600">
+  <thead>
+    <tr className="bg-green-600">
+      <th className="p-3 text-left text-green-200 font-semibold">Date</th>
+      <th className="p-3 text-left text-green-200 font-semibold">Sender</th> {/* ستون جدید */}
+      <th className="p-3 text-left text-green-200 font-semibold">Vendor</th>
+      <th className="p-3 text-left text-green-200 font-semibold">Container</th>
+      <th className="p-3 text-left text-green-200 font-semibold">Amount</th>
+      <th className="p-3 text-left text-green-200 font-semibold">Type</th>
+      <th className="p-3 text-left text-green-200 font-semibold">Documents</th>
+      <th className="p-3 text-left text-green-200 font-semibold">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {userTransfers.map((transfer) => (
+      <tr key={transfer.id} className="border-b border-green-600 hover:bg-green-700">
+        <td className="p-3 text-white">{transfer.date}</td>
+        
+        {/* ستون sender */}
+        <td className="p-3 text-white">
+          {transfer.sender ? (
+            <div>
+              <div className="font-semibold">{transfer.sender.name}</div>
+              <div className="text-sm text-green-300">@{transfer.sender.username}</div>
+            </div>
+          ) : (
+            <span className="text-gray-400">Unknown</span>
+          )}
+        </td>
+        
+        <td className="p-3 text-white font-semibold">
+          {transfer.vendor?.companyName || 'Unknown Vendor'}
+        </td>
+        <td className="p-3 text-white font-mono">{transfer.container.containerId}</td>
+        <td className="p-3 text-green-300 font-bold">
+          ${transfer.amount.toLocaleString()}
+        </td>
+        <td className="p-3">
+          <span className={`px-2 py-1 rounded-full text-xs ${
+            transfer.type === 'Bank' 
+              ? 'bg-blue-100 text-blue-800' 
+              : transfer.type === 'Cash'
+              ? 'bg-green-100 text-green-800'
+              : 'bg-orange-100 text-orange-800'
+          }`}>
+            {transfer.type}
+          </span>
+        </td>
+        <td className="p-3">
+          {transfer.documents && transfer.documents.length > 0 ? (
+            <div className="space-y-1">
+              {transfer.documents.map((doc: any) => {
+                const fileName = doc?.originalName || doc?.filename || 'Unnamed Document';
+                return (
+                  <a 
+                    key={doc.id}
+                    href={doc.path} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-300 hover:text-blue-200 text-sm flex items-center"
+                    title={fileName}
+                  >
+                    📎 {fileName.length > 20 
+                      ? fileName.substring(0, 20) + '...' 
+                      : fileName}
+                  </a>
+                );
+              })}
+            </div>
+          ) : (
+            <span className="text-gray-400 text-sm">No documents</span>
+          )}
+        </td>
+        <td className="p-3">
+          <div className="flex gap-2">
+            <button
+              onClick={() => printTransfer(transfer)}
+              className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm"
+            >
+              Print
+            </button>
+            <button
+              onClick={() => viewTransferDetails(transfer)}
+              className="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm"
+            >
+              Details
+            </button>
+          </div>
+        </td>
+      </tr>
+    ))}
+  </tbody>
+</table>
                 </div>
               </div>
             ) : (

@@ -22,12 +22,15 @@ interface Transfer {
     name: string;
     username: string;
   };
-
-  
   receiver: {
     id: string;
     name: string;
     username: string;
+  };
+  vendor: {
+    id: string;
+    companyName: string;
+    representativeName: string;
   };
   container: {
     containerId: string;
@@ -78,7 +81,7 @@ interface StatsData {
 export default function TransfersPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [filteredTransfers, setFilteredTransfers] = useState<Transfer[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -90,14 +93,16 @@ export default function TransfersPage() {
   const [error, setError] = useState<string | null>(null);
   
   // New transfer form states
-  const [newTransfer, setNewTransfer] = useState({
-    receiverId: '',
-    amount: '',
-    containerId: '',
-    type: 'Bank',
-    date: new Date().toISOString().split('T')[0],
-    description: ''
-  });
+// در قسمت newTransfer state
+const [newTransfer, setNewTransfer] = useState({
+  senderName: '', // نام فرستنده (متن آزاد)
+  vendorId: '', // ID فروشنده
+  amount: '',
+  containerId: '',
+  type: 'Bank',
+  date: new Date().toISOString().split('T')[0],
+  description: ''
+});
 
   // File upload for new transfer
   const [uploadingDocument, setUploadingDocument] = useState(false);
@@ -139,122 +144,145 @@ export default function TransfersPage() {
     filterTransfers();
     calculateStats();
   }, [filters, transfers, vendors]);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Load transfers, users, containers and documents in parallel
-      const [transfersResponse, usersResponse, containersResponse, documentsResponse] = await Promise.all([
-        fetch('/api/transfers'),
-        fetch('/api/users'),
-        fetch('/api/containers?all=true'),
-        fetch('/api/documents?type=transfer')
-        
-      ]);
-      
-      if (!transfersResponse.ok) throw new Error(`Failed to load transfers: ${transfersResponse.status}`);
-      if (!usersResponse.ok) throw new Error(`Failed to load users: ${usersResponse.status}`);
-      if (!containersResponse.ok) throw new Error(`Failed to load containers: ${containersResponse.status}`);
-      
-      const transfersData = await transfersResponse.json();
-      const usersData = await usersResponse.json();
-      const containersData = await containersResponse.json();
-      const documentsData = documentsResponse.ok ? await documentsResponse.json() : [];
-      
-      // Try to load vendors from the correct endpoint
-      let vendorsData = [];
-      try {
-        const vendorsResponse = await fetch('/api/vendors');
-        if (vendorsResponse.ok) {
-          vendorsData = await vendorsResponse.json();
-        } else {
-          // Fallback: extract vendors from transfers
-          const vendorMap = new Map();
-          transfersData.forEach((transfer: Transfer) => {
-            if (transfer.receiver && !vendorMap.has(transfer.receiver.id)) {
-              vendorMap.set(transfer.receiver.id, {
-                id: transfer.receiver.id,
-                companyName: transfer.receiver.name,
-                representativeName: transfer.receiver.username,
-                email: '',
-                phone: '',
-                country: '',
-                balance: 0,
-                userId: transfer.receiver.id
-              });
-            }
-          });
-          vendorsData = Array.from(vendorMap.values());
-        }
-      } catch (vendorError) {
-        console.error('Error loading vendors:', vendorError);
-        // Fallback: extract from transfers
-        const vendorMap = new Map();
-        transfersData.forEach((transfer: Transfer) => {
-          if (transfer.receiver && !vendorMap.has(transfer.receiver.id)) {
-            vendorMap.set(transfer.receiver.id, {
-              id: transfer.receiver.id,
-              companyName: transfer.receiver.name,
-              representativeName: transfer.receiver.username,
-              email: '',
-              phone: '',
-              country: '',
-              balance: 0,
-              userId: transfer.receiver.id
-            });
-          }
-        });
-        vendorsData = Array.from(vendorMap.values());
-      }
-      
-      setTransfers(transfersData);
-      setFilteredTransfers(transfersData);
-      setUsers(usersData);
-      setVendors(vendorsData);
-      setContainers(containersData);
-      setDocuments(documentsData);
-      
-    } catch (error) {
-      console.error('❌ Error loading data:', error);
-      setError('Failed to load data. Please check console for details.');
-    } finally {
-      setLoading(false);
+// در صفحه Transfers - تابع loadData
+const loadData = async () => {
+  try {
+    setLoading(true);
+    setError(null);
+    
+    console.log('🔄 Starting to load all data...');
+    
+    if (!session) {
+      throw new Error('No session found');
     }
-  };
 
+    // بارگذاری موازی تمام داده‌های مورد نیاز
+    const endpoints = [
+      { url: '/api/transfers', name: 'transfers' },
+      { url: '/api/vendors', name: 'vendors' },
+      { url: '/api/purchase/containers?all=true', name: 'containers' },
+      { url: '/api/documents?type=transfer', name: 'documents' },
+      { url: '/api/users', name: 'users' } // اضافه کردن endpoint کاربران
+    ];
+
+    console.log('📡 Fetching from endpoints:', endpoints);
+
+    const responses = await Promise.allSettled(
+      endpoints.map(endpoint => 
+        fetch(endpoint.url).then(res => {
+          if (!res.ok) throw new Error(`Failed to load ${endpoint.name}`);
+          return res.json();
+        })
+      )
+    );
+
+    console.log('📊 All responses received');
+
+    // پردازش پاسخ‌ها
+    const [transfersResult, vendorsResult, containersResult, documentsResult, usersResult] = responses;
+
+    let transfersData = [];
+    let vendorsData = [];
+    let containersData = [];
+    let documentsData = [];
+    let usersData = [];
+
+    if (transfersResult.status === 'fulfilled') {
+      transfersData = transfersResult.value;
+      console.log('✅ Transfers loaded:', transfersData.length);
+    } else {
+      console.error('❌ Transfers failed:', transfersResult.reason);
+    }
+
+    if (vendorsResult.status === 'fulfilled') {
+      vendorsData = vendorsResult.value;
+      console.log('✅ Vendors loaded:', vendorsData.length);
+    } else {
+      console.error('❌ Vendors failed:', vendorsResult.reason);
+    }
+
+    if (containersResult.status === 'fulfilled') {
+      containersData = containersResult.value;
+      console.log('✅ Containers loaded:', containersData.length);
+    } else {
+      console.error('❌ Containers failed:', containersResult.reason);
+    }
+
+    if (documentsResult.status === 'fulfilled') {
+      documentsData = documentsResult.value;
+      console.log('✅ Documents loaded:', documentsData.length);
+    } else {
+      console.error('❌ Documents failed:', documentsResult.reason);
+    }
+
+    if (usersResult.status === 'fulfilled') {
+      usersData = usersResult.value;
+      console.log('✅ Users loaded:', usersData.length);
+    } else {
+      console.error('❌ Users failed:', usersResult.reason);
+    }
+
+    // تنظیم stateها
+    setTransfers(transfersData);
+    setFilteredTransfers(transfersData);
+    setVendors(vendorsData);
+    setContainers(containersData);
+    setDocuments(documentsData);
+    setUsers(usersData); // اضافه کردن کاربران
+
+    console.log('🎉 All data loaded successfully');
+    console.log('📊 Data summary:', {
+      transfers: transfersData.length,
+      vendors: vendorsData.length,
+      containers: containersData.length,
+      users: usersData.length,
+      documents: documentsData.length
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in loadData:', error);
+    
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message
+      });
+    }
+    
+    setError(`Failed to load data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  } finally {
+    setLoading(false);
+  }
+};
   const filterTransfers = () => {
-    let filtered = transfers;
+  let filtered = transfers;
 
-    if (filters.vendorId) {
-      filtered = filtered.filter(transfer => transfer.receiverId === filters.vendorId);
-    }
+  if (filters.vendorId) {
+    filtered = filtered.filter(transfer => transfer.vendor.companyName === filters.vendorId);
+  }
 
-    if (filters.userId) {
-      filtered = filtered.filter(transfer => transfer.senderId === filters.userId);
-    }
+  if (filters.userId) {
+    filtered = filtered.filter(transfer => transfer.senderId === filters.userId);
+  }
 
-    if (filters.containerId) {
-      filtered = filtered.filter(transfer =>
-        transfer.container.containerId.toLowerCase().includes(filters.containerId.toLowerCase())
-      );
-    }
+  if (filters.containerId) {
+    filtered = filtered.filter(transfer => transfer.containerId === filters.containerId);
+  }
 
-    if (filters.dateFrom) {
-      filtered = filtered.filter(
-        transfer => new Date(transfer.date) >= new Date(filters.dateFrom)
-      );
-    }
+  if (filters.dateFrom) {
+    filtered = filtered.filter(
+      transfer => new Date(transfer.date) >= new Date(filters.dateFrom)
+    );
+  }
 
-    if (filters.dateTo) {
-      filtered = filtered.filter(
-        transfer => new Date(transfer.date) <= new Date(filters.dateTo)
-      );
-    }
+  if (filters.dateTo) {
+    filtered = filtered.filter(
+      transfer => new Date(transfer.date) <= new Date(filters.dateTo)
+    );
+  }
 
-    setFilteredTransfers(filtered);
-  };
+  setFilteredTransfers(filtered);
+};
 
   const calculateStats = () => {
     const totalTransfers = filteredTransfers.length;
@@ -294,89 +322,110 @@ export default function TransfersPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  try {
+    setSaving(true);
+    setError(null);
     
-    try {
-      setSaving(true);
-      setError(null);
-      
-      // First, create the transfer
-      const transferResponse = await fetch('/api/transfers', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...newTransfer,
-          amount: parseFloat(newTransfer.amount),
-          senderId: session?.user?.id,
-          receiverId: newTransfer.receiverId
-        })
-      });
-      
-      if (!transferResponse.ok) {
-        const errorData = await transferResponse.json();
-        throw new Error(errorData.error || 'Failed to save transfer');
-      }
+    // ایجاد description ترکیبی
+    const finalDescription = newTransfer.description 
+      ? `Sender: ${newTransfer.senderName} | ${newTransfer.description}`
+      : `Sender: ${newTransfer.senderName}`;
 
-      const savedTransfer = await transferResponse.json();
-
-      // Then, upload the document if a file was selected
-      if (selectedFile) {
-        try {
-          setUploadingDocument(true);
-          const formData = new FormData();
-          formData.append('file', selectedFile);
-          formData.append('transferId', savedTransfer.id);
-          formData.append('type', 'transfer');
-          
-     const documentResponse = await fetch('/api/documents/upload', {
-  method: 'POST',
-  body: formData,
-});
-          
-          if (!documentResponse.ok) {
-            const errorData = await documentResponse.json();
-            throw new Error(errorData.error || 'Failed to upload document');
-          }
-          
-          const newDocument = await documentResponse.json();
-          setDocuments(prev => [...prev, newDocument]);
-        } catch (uploadError) {
-          console.error('Error uploading document:', uploadError);
-          // Don't throw the error here, just show a warning
-          alert('Transfer saved successfully, but document upload failed. You can upload it later.');
-        } finally {
-          setUploadingDocument(false);
-        }
-      }
-
-      // Reset form
-      setTransfers(prev => [savedTransfer, ...prev]);
-      setNewTransfer({
-        receiverId: '',
-        amount: '',
-        containerId: '',
-        type: 'Bank',
-        date: new Date().toISOString().split('T')[0],
-        description: ''
-      });
-      setSelectedFile(null);
+    // ذخیره ترانسفر
+    const transferResponse = await fetch('/api/transfers', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        senderName: newTransfer.senderName,
+        vendorId: newTransfer.vendorId,
+        amount: newTransfer.amount,
+        containerId: newTransfer.containerId,
+        type: newTransfer.type,
+        date: newTransfer.date,
+        description: finalDescription
+      })
+    });
       
-      // Reset file input
-      const fileInput = document.getElementById('file-upload') as HTMLInputElement;
-      if (fileInput) fileInput.value = '';
-      
-      alert('Transfer saved successfully!');
-    } catch (error) {
-      console.error('Error saving transfer:', error);
-      setError(error instanceof Error ? error.message : 'Failed to save transfer');
-    } finally {
-      setSaving(false);
+    if (!transferResponse.ok) {
+      const errorData = await transferResponse.json();
+      throw new Error(errorData.error || 'Failed to save transfer');
     }
-  };
 
+    const savedTransfer = await transferResponse.json();
+    console.log('✅ Transfer saved:', savedTransfer.id);
+
+    // آپلود داکیومنت اگر فایل انتخاب شده باشد
+    if (selectedFile) {
+      try {
+        setUploadingDocument(true);
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('transferId', savedTransfer.id);
+        formData.append('type', 'transfer');
+        
+        console.log('📤 Uploading document for transfer:', savedTransfer.id);
+        
+        // استفاده از API مخصوص ترانسفر
+        const documentResponse = await fetch('/api/documents/upload-transfer', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!documentResponse.ok) {
+          const errorData = await documentResponse.json();
+          console.error('❌ Document upload failed:', errorData);
+          throw new Error(errorData.error || 'Failed to upload document');
+        }
+        
+        const newDocument = await documentResponse.json();
+        console.log('✅ Document uploaded:', newDocument.id);
+        
+        setDocuments(prev => [...prev, newDocument]);
+        
+      } catch (uploadError) {
+        console.error('❌ Error uploading document:', uploadError);
+        // خطا را به کاربر نشان می‌دهیم اما ترانسفر ذخیره شده است
+        alert('Transfer saved successfully, but document upload failed. You can upload it later.');
+      } finally {
+        setUploadingDocument(false);
+      }
+    }
+
+    // اضافه کردن ترانسفر جدید به لیست
+    setTransfers(prev => [savedTransfer, ...prev]);
+    
+    // ریست فرم
+    setNewTransfer({
+      senderName: '',
+      vendorId: '',
+      amount: '',
+      containerId: '',
+      type: 'Bank',
+      date: new Date().toISOString().split('T')[0],
+      description: ''
+    });
+    setSelectedFile(null);
+    
+    // ریست فایل اینپوت
+    const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = '';
+    }
+    
+    alert('Transfer saved successfully!');
+    
+  } catch (error) {
+    console.error('❌ Error saving transfer:', error);
+    setError(error instanceof Error ? error.message : 'Failed to save transfer');
+  } finally {
+    setSaving(false);
+  }
+};
   const clearFilters = () => {
     setFilters({
       vendorId: '',
@@ -386,97 +435,188 @@ export default function TransfersPage() {
       dateTo: ''
     });
   };
+const handleDelete = async (transferId: string) => {
+  // confirmation برای حذف
+  if (!confirm('Are you sure you want to delete this transfer? This action cannot be undone.')) {
+    return;
+  }
 
-  const printTransfers = (containerId?: string) => {
-    setPrinting(true);
+  try {
+    setDeletingId(transferId);
+    setError(null);
+
+    const response = await fetch(`/api/transfers/${transferId}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to delete transfer');
+    }
+
+    // حذف از state
+    setTransfers(prev => prev.filter(transfer => transfer.id !== transferId));
+    setFilteredTransfers(prev => prev.filter(transfer => transfer.id !== transferId));
+
+    alert('Transfer deleted successfully!');
     
-    setTimeout(() => {
-      const printContent = document.getElementById('print-content');
-      if (!printContent) {
-        setPrinting(false);
-        return;
-      }
+  } catch (error) {
+    console.error('❌ Error deleting transfer:', error);
+    setError(error instanceof Error ? error.message : 'Failed to delete transfer');
+  } finally {
+    setDeletingId(null);
+  }
+};
+  const printTransfers = (containerId?: string) => {
+  setPrinting(true);
+  
+  setTimeout(() => {
+    const transfersToPrint = containerId 
+      ? filteredTransfers.filter(t => t.containerId === containerId)
+      : filteredTransfers;
 
-      const transfersToPrint = containerId 
-        ? filteredTransfers.filter(t => t.containerId === containerId)
-        : filteredTransfers;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      setPrinting(false);
+      alert('Popup blocked! Please allow popups for this site.');
+      return;
+    }
 
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        setPrinting(false);
-        return;
-      }
-
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Transfers Report ${containerId ? `- Container ${containerId}` : ''}</title>
-            <style>
-              body { font-family: Arial, sans-serif; margin: 20px; }
-              h1 { color: #333; border-bottom: 2px solid #333; padding-bottom: 10px; }
-              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-              th { background-color: #f5f5f5; font-weight: bold; }
-              .total { font-weight: bold; margin-top: 20px; }
-              .header { display: flex; justify-content: between; align-items: center; margin-bottom: 20px; }
-              .logo { font-size: 24px; font-weight: bold; }
-              .date { color: #666; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <div class="logo">💰 Money Transfers Report</div>
-              <div class="date">Generated on: ${new Date().toLocaleDateString()}</div>
-            </div>
-            
-            <h1>${containerId ? `Transfers for Container: ${containerId}` : 'All Transfers'}</h1>
-            
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Sender</th>
-                  <th>Receiver</th>
-                  <th>Container</th>
-                  <th>Amount</th>
-                  <th>Type</th>
-                  <th>Description</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${transfersToPrint.map(transfer => `
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Transfers Report ${containerId ? `- Container ${containerId}` : ''}</title>
+          <style>
+            body { 
+              font-family: Arial, sans-serif; 
+              margin: 20px; 
+              line-height: 1.4;
+            }
+            h1 { 
+              color: #333; 
+              border-bottom: 2px solid #333; 
+              padding-bottom: 10px; 
+              margin-bottom: 20px;
+            }
+            table { 
+              width: 100%; 
+              border-collapse: collapse; 
+              margin-top: 20px; 
+              font-size: 14px;
+            }
+            th, td { 
+              border: 1px solid #ddd; 
+              padding: 10px; 
+              text-align: left; 
+            }
+            th { 
+              background-color: #f5f5f5; 
+              font-weight: bold; 
+            }
+            .total { 
+              font-weight: bold; 
+              margin-top: 20px; 
+              padding: 15px;
+              background-color: #f9f9f9;
+              border-radius: 5px;
+            }
+            .header { 
+              display: flex; 
+              justify-content: space-between; 
+              align-items: center; 
+              margin-bottom: 30px;
+              padding-bottom: 15px;
+              border-bottom: 1px solid #eee;
+            }
+            .logo { 
+              font-size: 24px; 
+              font-weight: bold; 
+              color: #6b46c1;
+            }
+            .date { 
+              color: #666; 
+              font-size: 14px;
+            }
+            .summary {
+              background: #f8f9fa;
+              padding: 15px;
+              border-radius: 5px;
+              margin: 20px 0;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="logo">💰 Money Transfers Report</div>
+            <div class="date">Generated on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+          </div>
+          
+          <h1>${containerId ? `Transfers for Container: ${containerId}` : 'All Transfers Report'}</h1>
+          
+          <div class="summary">
+            <strong>Report Summary:</strong><br>
+            • Total Transfers: ${transfersToPrint.length}<br>
+            • Total Amount: $${transfersToPrint.reduce((sum, t) => sum + t.amount, 0).toLocaleString()}<br>
+            • Date Range: ${transfersToPrint.length > 0 ? 
+              `${new Date(Math.min(...transfersToPrint.map(t => new Date(t.date).getTime()))).toLocaleDateString()} - 
+               ${new Date(Math.max(...transfersToPrint.map(t => new Date(t.date).getTime()))).toLocaleDateString()}` : 'N/A'}
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Sender</th>
+                <th>Receiver</th>
+                <th>Container</th>
+                <th>Amount</th>
+                <th>Type</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${transfersToPrint.map(transfer => {
+                const senderName = transfer.description?.split('|')[0]?.replace('Sender:', '').trim() || transfer.sender.name;
+                const description = transfer.description?.split('|')[1]?.trim() || '-';
+                
+                return `
                   <tr>
-                    <td>${transfer.date}</td>
-                    <td>${transfer.sender.name}</td>
-                    <td>${transfer.receiver.name}</td>
+                    <td>${new Date(transfer.date).toLocaleDateString()}</td>
+                    <td>${senderName}</td>
+                    <td>${transfer.vendor?.companyName || 'Unknown'}</td>
                     <td>${transfer.container.containerId}</td>
-                    <td>$${transfer.amount.toLocaleString()}</td>
+                    <td><strong>$${transfer.amount.toLocaleString()}</strong></td>
                     <td>${transfer.type}</td>
-                    <td>${transfer.description || '-'}</td>
+                    <td>${description}</td>
                   </tr>
-                `).join('')}
-              </tbody>
-            </table>
-            
-            <div class="total">
-              Total Transfers: ${transfersToPrint.length}<br>
-              Total Amount: $${transfersToPrint.reduce((sum, t) => sum + t.amount, 0).toLocaleString()}
-            </div>
-          </body>
-        </html>
-      `);
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+          
+          <div class="total">
+            <strong>Final Summary:</strong><br>
+            Total Transfers: ${transfersToPrint.length}<br>
+            Total Amount: <strong>$${transfersToPrint.reduce((sum, t) => sum + t.amount, 0).toLocaleString()}</strong><br>
+            Average Transfer: $${transfersToPrint.length > 0 ? (transfersToPrint.reduce((sum, t) => sum + t.amount, 0) / transfersToPrint.length).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'}
+          </div>
+          
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(() => {
+                window.close();
+              }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
 
-      printWindow.document.close();
-      printWindow.focus();
-      
-      setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-        setPrinting(false);
-      }, 250);
-    }, 500);
-  };
-
+    printWindow.document.close();
+    
+  }, 500);
+};
   if (status === 'loading' || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-100 flex flex-col">
@@ -654,38 +794,72 @@ export default function TransfersPage() {
                         <th className="p-3 text-left text-purple-900 font-semibold border-b border-purple-200">Actions</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {filteredTransfers.map((transfer) => (
-                        <tr key={transfer.id} className="border-b border-purple-200 hover:bg-purple-100">
-                          <td className="p-3 text-purple-900">{transfer.date}</td>
-                          <td className="p-3 text-purple-900">{transfer.sender.name}</td>
-                          <td className="p-3 text-purple-900">{transfer.receiver.name}</td>
-                          <td className="p-3 text-purple-900 font-mono">{transfer.container.containerId}</td>
-                          <td className="p-3 text-green-600 font-semibold">${transfer.amount.toLocaleString()}</td>
-                          <td className="p-3">
-                            <span className={`px-2 py-1 rounded-full text-xs ${
-                              transfer.type === 'Bank' 
-                                ? 'bg-blue-100 text-blue-800' 
-                                : transfer.type === 'Cash'
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-orange-100 text-orange-800'
-                            }`}>
-                              {transfer.type}
-                            </span>
-                          </td>
-                          <td className="p-3 text-purple-900 text-sm">{transfer.description || '-'}</td>
-                          <td className="p-3">
-                            <button
-                              onClick={() => printTransfers(transfer.containerId)}
-                              disabled={printing}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm disabled:opacity-50"
-                            >
-                              Print
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
+                 
+               
+<tbody>
+  {filteredTransfers.map((transfer) => {
+    // استخراج نام فرستنده واقعی از description
+    const senderName = transfer.description?.split('|')[0]?.replace('Sender:', '').trim() || transfer.sender.name;
+    const descriptionOnly = transfer.description?.split('|')[1]?.trim() || '-';
+    
+    return (
+      <tr key={transfer.id} className="border-b border-purple-200 hover:bg-purple-100 transition duration-200">
+        <td className="p-3 text-purple-900">{transfer.date}</td>
+        <td className="p-3 text-purple-900 font-medium">
+          {senderName}
+        </td>
+        <td className="p-3 text-purple-900">
+          {transfer.vendor?.companyName || 'Unknown Vendor'}
+        </td>
+        <td className="p-3 text-purple-900 font-mono">{transfer.container.containerId}</td>
+        <td className="p-3 text-green-600 font-semibold">${transfer.amount.toLocaleString()}</td>
+        <td className="p-3">
+          <span className={`px-2 py-1 rounded-full text-xs ${
+            transfer.type === 'Bank' 
+              ? 'bg-blue-100 text-blue-800' 
+              : transfer.type === 'Cash'
+              ? 'bg-green-100 text-green-800'
+              : 'bg-orange-100 text-orange-800'
+          }`}>
+            {transfer.type}
+          </span>
+        </td>
+        <td className="p-3 text-purple-900 text-sm">{descriptionOnly}</td>
+        <td className="p-3">
+          <div className="flex space-x-2">
+            <button
+              onClick={() => printTransfers(transfer.containerId)}
+              disabled={printing}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm disabled:opacity-50 transition duration-200 flex items-center space-x-1"
+              title="Print this transfer"
+            >
+              <span>🖨️</span>
+              <span>Print</span>
+            </button>
+            <button
+              onClick={() => handleDelete(transfer.id)}
+              disabled={deletingId === transfer.id}
+              className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm disabled:opacity-50 transition duration-200 flex items-center space-x-1"
+              title="Delete this transfer"
+            >
+              {deletingId === transfer.id ? (
+                <>
+                  <span className="animate-spin">⏳</span>
+                  <span>Deleting...</span>
+                </>
+              ) : (
+                <>
+                  <span>🗑️</span>
+                  <span>Delete</span>
+                </>
+              )}
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  })}
+</tbody>
                   </table>
                 </div>
               ) : (
@@ -700,50 +874,59 @@ export default function TransfersPage() {
           <div className="lg:col-span-1">
             <div className="bg-white rounded-2xl shadow-lg p-6 border border-purple-200 sticky top-24">
               <h2 className="text-xl font-semibold text-purple-900 mb-6 text-center">Add New Transfer</h2>
-              
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-purple-800 font-medium mb-2">Sender *</label>
-                  <input
-                    type="text"
-                    value={session?.user?.name || ''}
-                    disabled
-                    className="w-full p-3 rounded-lg bg-gray-100 text-gray-600 border border-gray-300"
-                  />
-                </div>
+      <form onSubmit={handleSubmit} className="space-y-4">
+  {/* فیلد نام فرستنده (آزاد) */}
+  <div>
+    <label className="block text-purple-800 font-medium mb-2">
+      Sender Name * 
+      <span className="text-sm text-gray-500 ml-2">(Actual sender name)</span>
+    </label>
+    <input
+      type="text"
+      name="senderName"
+      value={newTransfer.senderName}
+      onChange={handleInputChange}
+      required
+      className="w-full p-3 rounded-lg bg-purple-50 text-purple-900 border border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
+      placeholder="Enter actual sender name"
+    />
+  </div>
+
+  {/* فیلد گیرنده (فروشنده) */}
+  <div>
+    <label className="block text-purple-800 font-medium mb-2">Receiver (Vendor) *</label>
+    <select
+      name="vendorId"
+      value={newTransfer.vendorId}
+      onChange={handleInputChange}
+      required
+      className="w-full p-3 rounded-lg bg-purple-50 text-purple-900 border border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
+    >
+      <option value="">Select Vendor</option>
+      {vendors.map(vendor => (
+        <option key={vendor.id} value={vendor.id}>
+          {vendor.companyName} - {vendor.representativeName}
+        </option>
+      ))}
+    </select>
+  </div>
+               
 
                 <div>
-                  <label className="block text-purple-800 font-medium mb-2">Receiver (Vendor) *</label>
-               <select
-  name="receiverId"
-  value={newTransfer.receiverId}
-  onChange={handleInputChange}
-  required
-  className="w-full p-3 rounded-lg bg-purple-50 text-purple-900 border border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
->
-  <option value="">Select Vendor</option>
-  {vendors.map(vendor => (
-    <option key={vendor.id} value={vendor.id}>  {/* ✅ از vendor.id استفاده کن */}
-      {vendor.companyName} - {vendor.representativeName}
-    </option>
-  ))}
-</select>
-                </div>
+    <label className="block text-purple-800 font-medium mb-2">Amount (USD) *</label>
+    <input
+      type="number"
+      name="amount"
+      value={newTransfer.amount}
+      onChange={(e) => setNewTransfer(prev => ({ ...prev, amount: e.target.value }))}
+      required
+      min="0"
+      step="0.01"
+      className="w-full p-3 rounded-lg bg-purple-50 text-purple-900 border border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
+      placeholder="0.00"
+    />
+  </div>
 
-                <div>
-                  <label className="block text-purple-800 font-medium mb-2">Amount (USD) *</label>
-                  <input
-                    type="number"
-                    name="amount"
-                    value={newTransfer.amount}
-                    onChange={handleInputChange}
-                    required
-                    min="0"
-                    step="0.01"
-                    className="w-full p-3 rounded-lg bg-purple-50 text-purple-900 border border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="0.00"
-                  />
-                </div>
 
                 <div>
                   <label className="block text-purple-800 font-medium mb-2">Container ID *</label>
@@ -790,17 +973,24 @@ export default function TransfersPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-purple-800 font-medium mb-2">Description</label>
-                  <textarea
-                    name="description"
-                    value={newTransfer.description}
-                    onChange={handleInputChange}
-                    rows={3}
-                    className="w-full p-3 rounded-lg bg-purple-50 text-purple-900 border border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="Optional description of the transfer"
-                  />
-                </div>
+               <div>
+    <label className="block text-purple-800 font-medium mb-2">
+      Description
+      <span className="text-sm text-gray-500 ml-2">(Additional notes)</span>
+    </label>
+    <textarea
+      name="description"
+      value={newTransfer.description}
+      onChange={(e) => setNewTransfer(prev => ({ ...prev, description: e.target.value }))}
+      rows={2}
+      className="w-full p-3 rounded-lg bg-purple-50 text-purple-900 border border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
+      placeholder="Additional notes about this transfer"
+    />
+    <p className="text-xs text-gray-500 mt-1">
+      Sender name will be automatically included in the description.
+    </p>
+  </div>
+
 
                 {/* File Upload Section */}
                 <div>

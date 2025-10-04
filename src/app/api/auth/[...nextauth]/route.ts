@@ -5,6 +5,8 @@ import { authOptions } from "../../../../lib/auth";
 export const dynamic = "force-dynamic";
 
 export const revalidate = 0;
+
+export { handler as GET, handler as POST, authOptions };
 const handler = NextAuth(authOptions);
 
-export { handler as GET, handler as POST };
+//export { handler as GET, handler as POST };

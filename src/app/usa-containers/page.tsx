@@ -1,7 +1,7 @@
 // src/app/usa-containers/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -46,6 +46,7 @@ interface UserData {
   username: string;
   name: string;
   email: string;
+  role?: string;
 }
 
 interface ContainerData {
@@ -58,8 +59,8 @@ interface ContainerData {
   grandTotal: number;
   userId: string;
   vendorId: string;
-  user: UserData;
-  vendor: VendorData;
+  user?: UserData;
+  vendor?: VendorData;
   contents: ContentData[];
   documents: Document[];
   createdAt: string;
@@ -81,6 +82,24 @@ interface StatsData {
   vendorCount: number;
 }
 
+interface TransferData {
+  id: string;
+  containerId?: string;
+  container?: {
+    id: string;
+    containerId: string;
+  };
+  senderId: string;
+  receiverId: string;
+  amount: number;
+  type: string;
+  status: string;
+  date: string;
+  description?: string;
+  sender?: UserData;
+  receiver?: UserData;
+}
+
 export default function USAContainersManagement() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -89,6 +108,8 @@ export default function USAContainersManagement() {
   const [selectedContainer, setSelectedContainer] = useState<ContainerData | null>(null);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loadingDocuments, setLoadingDocuments] = useState(false);
+  const [selectedContainerTransfers, setSelectedContainerTransfers] = useState<any[]>([]);
+
   const [stats, setStats] = useState<StatsData>({
     totalContainers: 0,
     totalRevenue: 0,
@@ -103,118 +124,194 @@ export default function USAContainersManagement() {
     userCount: 0,
     vendorCount: 0
   });
+  
   const [filters, setFilters] = useState({
     userId: '',
     vendorId: '',
     containerId: '',
     status: ''
   });
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedTab, setSelectedTab] = useState<'containers' | 'users' | 'vendors' | 'my-transfers'>('containers');
   const [myTransfers, setMyTransfers] = useState<any[]>([]);
   const [loadingTransfers, setLoadingTransfers] = useState(false);
+  const [containerTransfers, setContainerTransfers] = useState<{[key: string]: TransferData[]}>({});
+  const [allTransfers, setAllTransfers] = useState<TransferData[]>([]);
 
-  // Check manager access and load data
-  useEffect(() => {
-    if (status === 'loading') return;
-    
-    if (!session) {
-      router.push('/login');
-      return;
+  const loadContainerDocuments = async (containerId: string) => {
+    try {
+      setLoadingDocuments(true);
+      console.log(`📄 Loading documents for container: ${containerId}`);
+      
+      const response = await fetch(`/api/documents?containerId=${containerId}`);
+      
+      if (response.ok) {
+        const documentsData = await response.json();
+        console.log(`✅ Loaded ${documentsData.length} documents`);
+        setDocuments(documentsData);
+        return documentsData;
+      } else {
+        console.error('❌ API Error:', response.status);
+        setDocuments([]);
+        return [];
+      }
+    } catch (error) {
+      console.error('❌ Error loading documents:', error);
+      setDocuments([]);
+      return [];
+    } finally {
+      setLoadingDocuments(false);
     }
-    
-    if (session.user?.role !== 'manager') {
-      router.push('/unauthorized');
-      return;
+  };
+
+  const loadContainerTransfers = async (containerId: string) => {
+    try {
+      console.log(`🔄 Loading transfers for container: ${containerId}`);
+      
+      const response = await fetch(`/api/transfers/container/${containerId}`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const transfers = await response.json();
+        console.log(`✅ Loaded ${transfers.length} transfers for container ${containerId}`);
+        
+        setContainerTransfers(prev => ({
+          ...prev,
+          [containerId]: transfers
+        }));
+        
+        return transfers;
+      } else {
+        console.error('❌ Failed to load container transfers:', response.status);
+        return [];
+      }
+    } catch (error) {
+      console.error('❌ Error loading container transfers:', error);
+      return [];
     }
-    
-    loadAllData();
-  }, [session, status, router]);
+  };
+
+  const loadAllTransfers = async () => {
+    try {
+      console.log('🔄 Loading all transfers...');
+      const response = await fetch('/api/transfers', {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const transfersData = await response.json();
+        setAllTransfers(transfersData);
+        console.log(`✅ Loaded ${transfersData.length} total transfers`);
+        return transfersData;
+      }
+      return [];
+    } catch (error) {
+      console.error('❌ Error loading all transfers:', error);
+      return [];
+    }
+  };
 
   const loadAllData = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // Load containers with documents
-      const containersResponse = await fetch('/api/purchase/containers?all=true&include=user,vendor,contents,documents', {
-        credentials: 'include'
-      });
+      console.log('🔄 Starting to load all data...');
+      
+      // Load containers با timeout
+      const [containersResponse, transfersData] = await Promise.all([
+        fetch('/api/purchase/containers?all=true&include=user,vendor,contents,documents', {
+          credentials: 'include'
+        }),
+        loadAllTransfers()
+      ]);
       
       if (!containersResponse.ok) {
         throw new Error(`Failed to load containers: ${containersResponse.status}`);
       }
         
       const containersData = await containersResponse.json();
+      console.log('📦 Containers loaded:', containersData?.length || 0);
       
       if (containersData && Array.isArray(containersData)) {
         const validContainers = containersData.filter(container => 
-          container.user != null && container.vendor != null
+          container && container.id
         ).map(container => ({
           ...container,
           contents: container.contents || [],
-          documents: container.documents || []
+          documents: container.documents || [],
+          user: container.user || undefined,
+          vendor: container.vendor || undefined
         }));
         
         setContainers(validContainers);
         setFilteredContainers(validContainers);
         calculateStats(validContainers);
+        
+        console.log('✅ Data loaded successfully');
       } else {
         setError('Invalid data received from server');
       }
     } catch (error) {
-      console.error('Load error:', error);
+      console.error('❌ Load error:', error);
       setError(error instanceof Error ? error.message : 'Failed to load data');
     } finally {
       setLoading(false);
+      console.log('🏁 Loading finished');
     }
   };
-
-const loadContainerDocuments = async (containerId: string) => {
-  try {
-    setLoadingDocuments(true);
-    console.log(`📄 Loading documents for container: ${containerId}`);
+const calculateFinancialSummary = useCallback((container: ContainerData) => {
+  const contentsTotal = container.contents?.reduce((sum, item) => sum + (item.total || 0), 0) || 0;
+  const rent = container.rent || 0;
+  const grandTotal = container.grandTotal || 0;
+  
+  // راه حل: چندین روش برای تطابق containerId
+  const containerTransfers = allTransfers.filter(transfer => {
+    // روش 1: تطابق مستقیم containerId
+    if (transfer.containerId === container.id) return true;
     
-    // استفاده از API صحیح
-    const response = await fetch(`/api/documents?containerId=${containerId}`);
+    // روش 2: تطابق از طریق relation container
+    if (transfer.container?.id === container.id) return true;
     
-    if (response.ok) {
-      const documentsData = await response.json();
-      console.log(`✅ Loaded ${documentsData.length} documents:`, documentsData);
-      
-      setDocuments(documentsData);
-      return documentsData;
-    } else {
-      console.error('❌ API Error:', response.status, response.statusText);
-      
-      // Fallback: استفاده از داده‌های موجود در container
-      const container = containers.find(c => c.id === containerId);
-      if (container && container.documents) {
-        console.log('🔄 Using container documents as fallback');
-        setDocuments(container.documents);
-        return container.documents;
-      }
-      
-      setDocuments([]);
-      return [];
-    }
-  } catch (error) {
-    console.error('❌ Error loading documents:', error);
+    // روش 3: تطابق از طریق containerId نمایشی
+    if (transfer.container?.containerId === container.containerId) return true;
     
-    // Fallback نهایی
-    const container = containers.find(c => c.id === containerId);
-    if (container && container.documents) {
-      setDocuments(container.documents);
-      return container.documents;
-    }
-    
-    setDocuments([]);
-    return [];
-  } finally {
-    setLoadingDocuments(false);
-  }
-};
+    return false;
+  });
+  
+  console.log('🔍 Transfer Matching Debug:', {
+    containerId: container.id,
+    containerContainerId: container.containerId,
+    allTransfersCount: allTransfers.length,
+    matchedTransfers: containerTransfers.length,
+    transfers: containerTransfers // اضافه کردن برای دیباگ
+  });
+  
+  // محاسبه مجموع تمام ترانسفرها (صرف نظر از وضعیت)
+  const totalTransfersAmount = containerTransfers.reduce((sum, transfer) => sum + (transfer.amount || 0), 0);
+  
+  // محاسبه مجموع ترانسفرهای completed
+  const completedTransfersAmount = containerTransfers
+    .filter(t => t.status === 'completed')
+    .reduce((sum, transfer) => sum + (transfer.amount || 0), 0);
+  
+  const remainingBalance = grandTotal - completedTransfersAmount;
+  
+  return {
+    contentsTotal,
+    rent,
+    grandTotal,
+    totalTransfers: totalTransfersAmount, // تغییر: مجموع مبالغ به جای تعداد
+    completedTransfersAmount, // مجموع مبالغ completed
+    remainingBalance,
+    transfersCount: containerTransfers.length, // تعداد ترانسفرها
+    completedTransfersCount: containerTransfers.filter(t => t.status === 'completed').length, // تعداد completed
+    allContainerTransfers: containerTransfers
+  };
+}, [allTransfers]);
 
   const loadMyTransfers = async () => {
     try {
@@ -222,7 +319,7 @@ const loadContainerDocuments = async (containerId: string) => {
       const response = await fetch('/api/transfers', {
         credentials: 'include'
       });
-      
+        
       if (response.ok) {
         const transfersData = await response.json();
         
@@ -241,27 +338,32 @@ const loadContainerDocuments = async (containerId: string) => {
     }
   };
 
+  // اصلاح useEffect اصلی
   useEffect(() => {
-    if (selectedTab === 'my-transfers' && session?.user?.id) {
-      loadMyTransfers();
+    if (status === 'loading') return;
+    
+    if (!session) {
+      router.push('/login');
+      return;
     }
-  }, [selectedTab, session]);
-
-  // بارگذاری اسناد هنگام انتخاب کانتینر
-  useEffect(() => {
-    if (selectedContainer) {
-      loadContainerDocuments(selectedContainer.id);
+    
+    if (session.user?.role !== 'manager') {
+      router.push('/unauthorized');
+      return;
     }
-  }, [selectedContainer]);
+    
+    console.log('🎯 Starting data load...');
+    loadAllData();
+  }, [session, status, router]);
 
-  const calculateStats = (containersList: ContainerData[]) => {
+  const calculateStats = useCallback((containersList: ContainerData[]) => {
     const totalContainers = containersList.length;
-    const totalRevenue = containersList.reduce((sum, container) => sum + container.grandTotal, 0);
+    const totalRevenue = containersList.reduce((sum, container) => sum + (container.grandTotal || 0), 0);
     const totalItems = containersList.reduce((sum, container) => sum + (container.contents?.length || 0), 0);
-    const totalRent = containersList.reduce((sum, container) => sum + container.rent, 0);
+    const totalRent = containersList.reduce((sum, container) => sum + (container.rent || 0), 0);
     
     const totalContentsCost = containersList.reduce((sum, container) => 
-      sum + (container.contents?.reduce((contentSum, item) => contentSum + item.total, 0) || 0), 0
+      sum + (container.contents?.reduce((contentSum, item) => contentSum + (item.total || 0), 0) || 0), 0
     );
     
     const pendingCount = containersList.filter(c => c.status === 'pending').length;
@@ -293,9 +395,9 @@ const loadContainerDocuments = async (containerId: string) => {
       userCount: users.size,
       vendorCount: vendors.size
     });
-  };
+  }, []);
 
-  const getUniqueUsers = () => {
+  const getUniqueUsers = useCallback(() => {
     const usersMap = new Map();
     
     containers.forEach(container => {
@@ -305,9 +407,9 @@ const loadContainerDocuments = async (containerId: string) => {
     });
     
     return Array.from(usersMap.values());
-  };
+  }, [containers]);
 
-  const getUniqueVendors = () => {
+  const getUniqueVendors = useCallback(() => {
     const vendorsMap = new Map();
     
     containers.forEach(container => {
@@ -317,9 +419,9 @@ const loadContainerDocuments = async (containerId: string) => {
     });
     
     return Array.from(vendorsMap.values());
-  };
+  }, [containers]);
 
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
     let filtered = containers;
 
     if (filters.userId) {
@@ -346,11 +448,11 @@ const loadContainerDocuments = async (containerId: string) => {
 
     setFilteredContainers(filtered);
     calculateStats(filtered);
-  };
+  }, [containers, filters, calculateStats]);
 
   useEffect(() => {
     applyFilters();
-  }, [containers, filters]);
+  }, [applyFilters]);
 
   const refreshData = () => {
     loadAllData();
@@ -365,13 +467,18 @@ const loadContainerDocuments = async (containerId: string) => {
     });
   };
 
-  const printContainerDetails = (container: ContainerData) => {
+const printContainerDetails = (container: ContainerData) => {
   const printWindow = window.open('', '_blank');
   if (!printWindow) return;
   
-  // محاسبه مجموع قیمت محتویات
-  const contentsTotal = container.contents?.reduce((sum, item) => sum + (item.total || 0), 0) || 0;
+  // استفاده از تابع calculateFinancialSummary برای محاسبه دقیق
+  const financialSummary = calculateFinancialSummary(container);
+  const contentsTotal = financialSummary.contentsTotal;
   const itemsCount = container.contents?.length || 0;
+
+  // محاسبه مقادیر منفی برای ترانسفرها
+  const negativeTransfersAmount = -financialSummary.totalTransfers;
+  const remainingBalance = financialSummary.grandTotal + negativeTransfersAmount;
 
   const printContent = `
     <!DOCTYPE html>
@@ -409,6 +516,10 @@ const loadContainerDocuments = async (containerId: string) => {
         .financial-summary { 
           background-color: #e9ecef;
         }
+        .transfers-summary {
+          background-color: #fff3cd;
+          border-color: #ffeaa7;
+        }
         .contents-table { 
           width: 100%; 
           border-collapse: collapse; 
@@ -433,6 +544,18 @@ const loadContainerDocuments = async (containerId: string) => {
         .total-row {
           font-weight: bold;
           background-color: #ddd;
+        }
+        .financial-row {
+          display: flex;
+          justify-between;
+          margin-bottom: 5px;
+        }
+        .remaining-balance {
+          font-weight: bold;
+          font-size: 18px;
+          border-top: 2px solid #333;
+          padding-top: 10px;
+          margin-top: 10px;
         }
         @media print {
           body { margin: 0.5in; }
@@ -476,23 +599,37 @@ const loadContainerDocuments = async (containerId: string) => {
       
       <div class="section financial-summary">
         <h3>Financial Summary</h3>
-        <div class="info-row">
+        <div class="financial-row">
           <span class="label">Contents Total:</span>
           <span>$${contentsTotal.toLocaleString()}</span>
         </div>
-        <div class="info-row">
+        <div class="financial-row">
           <span class="label">Container Rent:</span>
           <span>$${container.rent.toLocaleString()}</span>
         </div>
-        <div class="info-row">
+        <div class="financial-row">
           <span class="label">Grand Total:</span>
           <span>$${container.grandTotal.toLocaleString()}</span>
         </div>
-        <div class="info-row">
+        <div class="financial-row">
           <span class="label">Number of Items:</span>
           <span>${itemsCount}</span>
         </div>
       </div>
+
+     <!-- بخش ترانسفرها -->
+<div class="section transfers-summary">
+  <h3>Transfers Summary</h3>
+  <div class="financial-row">
+    <span class="label">Total Transfers Amount:</span>
+    <span>$${financialSummary.totalTransfers.toLocaleString()}</span>
+  </div>
+
+  <div class="financial-row remaining-balance">
+    <span class="label">Remaining Balance:</span>
+    <span>$${remainingBalance.toLocaleString()}</span>
+  </div>
+</div>
       
       <h3>Container Contents (${itemsCount} items)</h3>
       
@@ -557,28 +694,45 @@ const loadContainerDocuments = async (containerId: string) => {
   printWindow.document.write(printContent);
   printWindow.document.close();
 };
+  const handleViewContainer = async (container: ContainerData) => {
+    try {
+      console.log('👁️ Viewing container:', container.containerId);
+      setSelectedContainer(container);
+      
+      // لود اسناد و ترانسفرها به صورت موازی
+      await Promise.all([
+        loadContainerDocuments(container.id),
+        loadContainerTransfers(container.id)
+      ]);
+      
+      console.log('✅ Container details loaded successfully');
+    } catch (error) {
+      console.error('❌ Error loading container details:', error);
+      setError('Failed to load container details');
+    }
+  };
 
   // تابع تست برای بررسی API اسناد
   const testDocumentsAPI = async (containerId: string) => {
     try {
       console.log('Testing documents API for container:', containerId);
-      
-      const response = await fetch(`/api/documents?containerId=${containerId}`);
-      console.log('API Response status:', response.status);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Documents data:', data);
-        return data;
-      } else {
-        console.error('API Error:', response.status, response.statusText);
+
+        const response = await fetch(`/api/documents?containerId=${containerId}`);
+        console.log('API Response status:', response.status);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Documents data:', data);
+          return data;
+        } else {
+          console.error('API Error:', response.status, response.statusText);
+          return [];
+        }
+      } catch (error) {
+        console.error('API Test error:', error);
         return [];
       }
-    } catch (error) {
-      console.error('API Test error:', error);
-      return [];
-    }
-  };
+    };
 
   if (status === 'loading') {
     return (
@@ -688,7 +842,10 @@ const loadContainerDocuments = async (containerId: string) => {
                   Vendors
                 </button>
                 <button
-                  onClick={() => setSelectedTab('my-transfers')}
+                  onClick={() => {
+                    setSelectedTab('my-transfers');
+                    loadMyTransfers();
+                  }}
                   className={`px-6 py-3 rounded-xl font-semibold transition duration-200 ${
                     selectedTab === 'my-transfers'
                       ? 'bg-green-600 text-white'
@@ -829,17 +986,16 @@ const loadContainerDocuments = async (containerId: string) => {
                             <td className="p-4">
                               <div className="flex space-x-2">
                                 <button
-                                  onClick={() => setSelectedContainer(container)}
+                                  onClick={() => handleViewContainer(container)}
                                   className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
                                 >
                                   View
                                 </button>
                                 <button
-                                  onClick={() => testDocumentsAPI(container.id)}
-                                  className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm"
-                                  title="Test documents API"
+                                  onClick={() => printContainerDetails(container)}
+                                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
                                 >
-                                  🐛 Debug
+                                  Print
                                 </button>
                               </div>
                             </td>
@@ -1074,8 +1230,6 @@ const loadContainerDocuments = async (containerId: string) => {
           </div>
         </div>
 
-        
-
         {/* Container Details Modal */}
         {selectedContainer && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -1107,8 +1261,8 @@ const loadContainerDocuments = async (containerId: string) => {
                 <div className="bg-green-800 p-6 rounded-xl border border-green-700 text-white">
                   <h4 className="text-lg font-semibold mb-4">Container Information</h4>
                   <div className="space-y-3">
-                    <p><span className="font-medium">User:</span> {selectedContainer.user.name} ({selectedContainer.user.username})</p>
-                    <p><span className="font-medium">Vendor:</span> {selectedContainer.vendor.companyName}</p>
+                    <p><span className="font-medium">User:</span> {selectedContainer.user?.name || 'N/A'} ({selectedContainer.user?.username || 'N/A'})</p>
+                    <p><span className="font-medium">Vendor:</span> {selectedContainer.vendor?.companyName || 'N/A'}</p>
                     <p><span className="font-medium">Status:</span> 
                       <span className={`ml-2 px-2 py-1 rounded-full text-sm ${
                         selectedContainer.status === 'completed' ? 'bg-green-500' :
@@ -1123,75 +1277,113 @@ const loadContainerDocuments = async (containerId: string) => {
                     <p><span className="font-medium">Created:</span> {new Date(selectedContainer.createdAt).toLocaleString()}</p>
                   </div>
                 </div>
+{/* محاسبه مستقیم ترانسفرها */}
+{(() => {
+  const financialSummary = calculateFinancialSummary(selectedContainer);
+  
+  // محاسبه مقادیر - ترانسفرها به عنوان کسر در نظر گرفته می‌شوند اما بدون علامت منفی نمایش داده می‌شوند
+  const remainingBalance = financialSummary.grandTotal - financialSummary.totalTransfers;
+  
+  return (
+    <div className="bg-green-800 p-6 rounded-xl border border-green-700 text-white">
+      <h4 className="text-lg font-semibold mb-4">Financial Summary</h4>
+      <div className="space-y-3">
+        <p><span className="font-medium">Contents Total:</span> 
+          ${financialSummary.contentsTotal.toLocaleString()}
+        </p>
+        <p><span className="font-medium">Container Rent:</span> 
+          ${financialSummary.rent.toLocaleString()}
+        </p>
+        <p><span className="font-medium">Grand Total:</span> 
+          <span className="font-semibold">${financialSummary.grandTotal.toLocaleString()}</span>
+        </p>
 
-                <div className="bg-green-800 p-6 rounded-xl border border-green-700 text-white">
-                  <h4 className="text-lg font-semibold mb-4">Financial Summary</h4>
-                  <div className="space-y-3">
-                    <p><span className="font-medium">Contents Total:</span> 
-                      ${(selectedContainer.contents?.reduce((sum, item) => sum + item.total, 0) || 0).toLocaleString()}
-                    </p>
-                    <p><span className="font-medium">Container Rent:</span> 
-                      ${selectedContainer.rent.toLocaleString()}
-                    </p>
-                    <p><span className="font-medium">Grand Total:</span> 
-                      <span className="font-semibold">${selectedContainer.grandTotal.toLocaleString()}</span>
-                    </p>
-                    <p><span className="font-medium">Number of Items:</span> 
-                      {selectedContainer.contents?.length || 0}
-                    </p>
-                  </div>
-                </div>
+        {/* Transfers Section - فقط مجموع مبالغ */}
+        <div className="pb-2 border-b border-green-600">
+          <p className="font-bold mb-2">Transfers Summary:</p>
+          
+          <div className="flex justify-between items-center">
+            <span className="text-green-200">Total Transfers Amount:</span>
+            <span className="font-semibold">
+              $${financialSummary.totalTransfers.toLocaleString()}
+            </span>
+          </div>
+        </div>
+
+        {/* Final Calculation */}
+        <div className="pt-2">
+          <div className="flex justify-between items-center text-lg border-t border-green-600 pt-2">
+            <span className="font-semibold">Remaining Balance:</span>
+            <span className={`font-bold text-xl ${
+              remainingBalance >= 0 ? 'text-green-300' : 'text-red-300'
+            }`}>
+              ${remainingBalance.toLocaleString()}
+            </span>
+          </div>
+          <div className="text-xs text-green-300 mt-1">
+            (Grand Total: ${financialSummary.grandTotal.toLocaleString()} - Total Transfers: ${financialSummary.totalTransfers.toLocaleString()})
+          </div>
+        </div>
+
+        <p><span className="font-medium">Number of Items:</span> 
+          {selectedContainer.contents?.length || 0}
+        </p>
+      </div>
+    </div>
+  );
+})()}
               </div>
 
-
               {/* Documents Section */}
-// در بخش نمایش اسناد
-{loadingDocuments ? (
-  <div className="text-center py-4 text-green-700">
-    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-2"></div>
-    Loading documents...
-  </div>
-) : documents.length > 0 ? (
-  // نمایش اسناد
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-    {documents.map((doc, index) => (
-      <div key={doc.id || index} className="bg-white p-4 rounded-lg border border-green-200">
-        <div className="flex justify-between items-start mb-2">
-          <span className="text-green-900 font-medium truncate">
-            {doc.originalName || doc.name || 'Unnamed Document'}
-          </span>
-          <a 
-            href={doc.url || doc.path} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm ml-2"
-          >
-            📎 Open
-          </a>
-        </div>
-        <div className="text-xs text-green-600">
-          Type: {doc.type} | 
-          Uploaded: {new Date(doc.createdAt).toLocaleDateString()}
-        </div>
-      </div>
-    ))}
-  </div>
-) : (
-  <div className="text-center py-8 text-orange-600">
-    <div className="text-2xl mb-2">📭</div>
-    <p>No documents found for this container.</p>
-    <p className="text-sm mt-2">This could mean:</p>
-    <ul className="text-xs text-left mt-1 space-y-1">
-      <li>• No documents have been uploaded yet</li>
-      <li>• Documents are still processing</li>
-      <li>• There might be a database issue</li>
-    </ul>
-  </div>
-)}
+              {loadingDocuments ? (
+                <div className="text-center py-4 text-green-700">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-2"></div>
+                  Loading documents...
+                </div>
+              ) : documents.length > 0 ? (
+                <div className="mb-8">
+                  <h4 className="text-xl font-semibold text-green-900 mb-4">Documents ({documents.length})</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {documents.map((doc, index) => (
+                      <div key={doc.id || index} className="bg-white p-4 rounded-lg border border-green-200">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="text-green-900 font-medium truncate">
+                            {doc.originalName || doc.name || 'Unnamed Document'}
+                          </span>
+                          <a 
+                            href={doc.url || doc.path} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm ml-2"
+                          >
+                            📎 Open
+                          </a>
+                        </div>
+                        <div className="text-xs text-green-600">
+                          Type: {doc.type} | 
+                          Uploaded: {new Date(doc.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-orange-600 mb-8">
+                  <div className="text-2xl mb-2">📭</div>
+                  <p>No documents found for this container.</p>
+                  <p className="text-sm mt-2">This could mean:</p>
+                  <ul className="text-xs text-left mt-1 space-y-1 max-w-md mx-auto">
+                    <li>• No documents have been uploaded yet</li>
+                    <li>• Documents are still processing</li>
+                    <li>• There might be a database issue</li>
+                  </ul>
+                </div>
+              )}
+
               <h4 className="text-xl font-semibold text-green-900 mb-6">
-                Contents ({(selectedContainer.contents?.length) || 0} items)
+                Contents ({(selectedContainer?.contents?.length) || 0} items)
               </h4>
-              
+
               <div className="overflow-x-auto">
                 <table className="w-full bg-green-50 rounded-xl border border-green-200">
                   <thead>
@@ -1208,7 +1400,7 @@ const loadContainerDocuments = async (containerId: string) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {(selectedContainer.contents || []).map((item, index) => (
+                    {(selectedContainer?.contents || []).map((item, index) => (
                       <tr key={index} className="border-b border-green-200 hover:bg-green-100">
                         <td className="p-4 text-green-900">{item.number}</td>
                         <td className="p-4 text-green-900">{item.item}</td>
