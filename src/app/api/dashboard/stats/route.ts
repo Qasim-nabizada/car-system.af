@@ -4,44 +4,67 @@ import prisma from '../../../../lib/database';
 
 export async function GET() {
   try {
-    console.log('🔍 Starting dashboard stats calculation...');
+    console.log('🔍 Starting dashboard stats calculation for ALL containers...');
 
-    // Get all UAE sales data
+    // Get ALL UAE sales data from ALL containers
     const allSales = await prisma.uAESale.findMany({
       select: {
-        salePrice: true
+        salePrice: true,
+        containerId: true
       }
     });
 
-    // Get all UAE expenses data
+    // Get ALL UAE expenses data from ALL containers
     const allExpenses = await prisma.uAEExpend.findMany({
       select: {
-        amount: true
+        amount: true,
+        containerId: true
       }
     });
 
-    // Get all USA purchase data
+    // Get ALL containers with their USA purchase costs
     const allContainers = await prisma.purchaseContainer.findMany({
       select: {
-        grandTotal: true
+        id: true,
+        containerId: true,
+        grandTotal: true,
+        status: true
       }
     });
 
-    console.log('📊 Data counts - Sales:', allSales.length, 'Expenses:', allExpenses.length, 'Containers:', allContainers.length);
+    console.log('📊 Total data found:');
+    console.log('  - Sales records:', allSales.length);
+    console.log('  - Expense records:', allExpenses.length);
+    console.log('  - Containers:', allContainers.length);
 
-    // Calculate totals
-    const totalSalesUAE = allSales.reduce((sum, sale) => sum + (sale.salePrice || 0), 0);
-    const totalExpendUAE = allExpenses.reduce((sum, expense) => sum + (expense.amount || 0), 0);
-    const totalBuyUSA = allContainers.reduce((sum, container) => sum + ((container.grandTotal || 0) * 3.67), 0);
+    // Calculate totals from ALL containers
+    let totalSalesUAE = 0;
+    let totalExpendUAE = 0;
+    let totalBuyUSA = 0;
+
+    // Calculate UAE sales total
+    allSales.forEach(sale => {
+      totalSalesUAE += sale.salePrice || 0;
+    });
+
+    // Calculate UAE expenses total
+    allExpenses.forEach(expense => {
+      totalExpendUAE += expense.amount || 0;
+    });
+
+    // Calculate USA purchase costs (convert USD to AED)
+    allContainers.forEach(container => {
+      totalBuyUSA += (container.grandTotal || 0) * 3.67;
+    });
 
     // Calculate benefits according to your formula: Total Sale UAE - (Total Buy USA + Total Expend UAE)
     const totalBenefits = totalSalesUAE - (totalBuyUSA + totalExpendUAE);
     const totalCosts = totalBuyUSA + totalExpendUAE;
 
-    console.log('💰 Calculations:');
+    console.log('💰 Financial Calculations:');
     console.log('  - Total UAE Sales:', totalSalesUAE);
-    console.log('  - Total USA Buy (AED):', totalBuyUSA);
     console.log('  - Total UAE Expenses:', totalExpendUAE);
+    console.log('  - Total USA Buy (AED):', totalBuyUSA);
     console.log('  - Total Costs:', totalCosts);
     console.log('  - Total Benefits:', totalBenefits);
 
@@ -53,39 +76,33 @@ export async function GET() {
     const totalUsers = await prisma.user.count();
     const totalContainersCount = allContainers.length;
     
-    // Get container status counts
-    const containersWithStatus = await prisma.purchaseContainer.findMany({
-      select: {
-        status: true
-      }
-    });
-    
-    const pendingContainers = containersWithStatus.filter(c => c.status === 'pending').length;
-    const shippedContainers = containersWithStatus.filter(c => c.status === 'shipped').length;
-    const completedContainers = containersWithStatus.filter(c => c.status === 'completed').length;
+    // Count containers by status
+    const pendingContainers = allContainers.filter(c => c.status === 'pending').length;
+    const shippedContainers = allContainers.filter(c => c.status === 'shipped').length;
+    const completedContainers = allContainers.filter(c => c.status === 'completed').length;
 
     // Monthly benefits (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
-    const recentSales = await prisma.uAESale.aggregate({
+    const recentSales = await prisma.uAESale.findMany({
       where: {
         createdAt: {
           gte: thirtyDaysAgo
         }
       },
-      _sum: {
+      select: {
         salePrice: true
       }
     });
 
-    const recentExpenses = await prisma.uAEExpend.aggregate({
+    const recentExpenses = await prisma.uAEExpend.findMany({
       where: {
         createdAt: {
           gte: thirtyDaysAgo
         }
       },
-      _sum: {
+      select: {
         amount: true
       }
     });
@@ -101,8 +118,8 @@ export async function GET() {
       }
     });
 
-    const monthlySales = recentSales._sum.salePrice || 0;
-    const monthlyExpenses = recentExpenses._sum.amount || 0;
+    const monthlySales = recentSales.reduce((sum, sale) => sum + (sale.salePrice || 0), 0);
+    const monthlyExpenses = recentExpenses.reduce((sum, expense) => sum + (expense.amount || 0), 0);
     const monthlyUSABuy = recentContainers.reduce((sum, container) => sum + ((container.grandTotal || 0) * 3.67), 0);
     const monthlyBenefits = monthlySales - (monthlyUSABuy + monthlyExpenses);
 
@@ -115,12 +132,12 @@ export async function GET() {
       completedContainers,
       totalBenefits: Math.round(totalBenefits),
       totalCosts: Math.round(totalCosts),
-      netProfit: Math.round(totalBenefits), // Same as totalBenefits
+      netProfit: Math.round(totalBenefits),
       profitMargin,
       monthlyBenefits: Math.round(monthlyBenefits)
     };
 
-    console.log('🎯 Final Stats:', stats);
+    console.log('🎯 Final Dashboard Stats:', stats);
 
     return NextResponse.json(stats);
 
