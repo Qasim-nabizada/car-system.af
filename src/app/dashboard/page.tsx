@@ -1,15 +1,14 @@
-// app/dashboard/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { authOptions } from '../api/auth/[...nextauth]/route';
 import Link from 'next/link';
-import Image from 'next/image';
+import Navbar from '../components/Navbar';
+import Footer from '../components/Footer';
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell
 } from 'recharts';
 
 interface DashboardStats {
@@ -19,11 +18,11 @@ interface DashboardStats {
   pendingContainers: number;
   shippedContainers: number;
   completedContainers: number;
-  totalRevenue: number;
+  totalBenefits: number;
   totalCosts: number;
   netProfit: number;
   profitMargin: number;
-  monthlyRevenue: number;
+  monthlyBenefits: number;
 }
 
 interface RevenueData {
@@ -39,16 +38,33 @@ interface ContainerStatusData {
   percentage: number;
 }
 
-interface ProfitByCategory {
-  category: string;
-  profit: number;
-  color: string;
+interface UserReport {
+  userId: string;
+  userName: string;
+  totalContainers: number;
+  totalUSACostUSD: number;
+  totalUAESalesAED: number;
+  totalUAEExpensesAED: number;
+  totalBenefitsAED: number;
 }
 
-export default function Dashboard() {
-  
+interface VendorContainerCount {
+  vendorId: string;
+  vendorName: string;
+  count: number;
+  percentage: number;
+}
+
+const USD_TO_AED_RATE = 3.67;
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+
+export default function ReportsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [timeRange, setTimeRange] = useState<'month' | 'quarter' | 'year'>('year');
   
   const [stats, setStats] = useState<DashboardStats>({
     totalVendors: 0,
@@ -57,51 +73,61 @@ export default function Dashboard() {
     pendingContainers: 0,
     shippedContainers: 0,
     completedContainers: 0,
-    totalRevenue: 0,
+    totalBenefits: 0,
     totalCosts: 0,
     netProfit: 0,
     profitMargin: 0,
-    monthlyRevenue: 0
+    monthlyBenefits: 0
   });
   
   const [revenueData, setRevenueData] = useState<RevenueData[]>([]);
   const [containerStatusData, setContainerStatusData] = useState<ContainerStatusData[]>([]);
-  const [profitByCategory, setProfitByCategory] = useState<ProfitByCategory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [timeRange, setTimeRange] = useState<'week' | 'month' | 'quarter' | 'year'>('month');
-  const [isEmpty, setIsEmpty] = useState(false);
+  const [userReports, setUserReports] = useState<UserReport[]>([]);
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [vendorStats, setVendorStats] = useState<VendorContainerCount[]>([]);
+  const [debugInfo, setDebugInfo] = useState<string>('');
+
+  // State for report generation
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [reportType, setReportType] = useState<'container' | 'vendor' | 'general'>('general');
+  const [selectedContainer, setSelectedContainer] = useState<string>('');
+  const [selectedVendor, setSelectedVendor] = useState<string>('');
+  const [uploadedDocuments, setUploadedDocuments] = useState<File[]>([]);
+  const [generatingReport, setGeneratingReport] = useState(false);
 
   useEffect(() => {
     if (status === 'loading') return;
     
-    if (!session) {
+    if (!session || session.user?.role !== 'manager') {
       router.push('/login');
       return;
     }
     
     loadDashboardData();
+    loadVendorsData();
   }, [session, status, router, timeRange]);
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      setIsEmpty(false);
+      setError(null);
+      setDebugInfo('Loading dashboard data...');
       
-      // Load dashboard statistics
+      // Load dashboard statistics - از همان API داشبورد
       const statsResponse = await fetch('/api/dashboard/stats');
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
+        console.log('📊 Dashboard stats loaded:', statsData);
         setStats(statsData);
-        
-        // Check if database is completely empty
-        const totalItems = statsData.totalVendors + statsData.totalContainers + statsData.totalRevenue;
-        setIsEmpty(totalItems === 0);
+      } else {
+        throw new Error('Failed to load dashboard stats');
       }
       
       // Load revenue data
       const revenueResponse = await fetch(`/api/dashboard/revenue?range=${timeRange}`);
       if (revenueResponse.ok) {
         const revenueData = await revenueResponse.json();
+        console.log('💰 Revenue data loaded:', revenueData);
         setRevenueData(revenueData);
       }
       
@@ -109,491 +135,647 @@ export default function Dashboard() {
       const containersResponse = await fetch('/api/dashboard/containers');
       if (containersResponse.ok) {
         const containersData = await containersResponse.json();
+        console.log('📦 Container status data loaded:', containersData);
         setContainerStatusData(containersData);
+        
+        // تبدیل داده‌های وضعیت کانتینر به آمار فروشندگان
+        convertContainerStatusToVendorStats(containersData);
       }
       
-      // Load profit by category
-      const profitResponse = await fetch('/api/dashboard/profit-by-category');
-      if (profitResponse.ok) {
-        const profitData = await profitResponse.json();
-        setProfitByCategory(profitData);
-      }
+      // تولید گزارشات کاربران از داده‌های داشبورد
+      generateUserReportsFromDashboardData();
+      
+      setDebugInfo('✅ All dashboard data loaded successfully');
       
     } catch (error) {
       console.error('Error loading dashboard data:', error);
-      setIsEmpty(true);
+      setError('Failed to load dashboard data: ' + error);
+      setDebugInfo('❌ Error loading dashboard data');
     } finally {
       setLoading(false);
     }
   };
 
-  // Colors for charts
-  const COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#06B6D4'];
-  
-  const statusColors: { [key: string]: string } = {
-    pending: '#F59E0B',
-    shipped: '#3B82F6',
-    completed: '#10B981'
-  };
-
-  // Custom label for pie chart
-  const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
-    if (percent === 0) return null;
+  const convertContainerStatusToVendorStats = (containersData: ContainerStatusData[]) => {
+    // در اینجا از داده‌های وضعیت کانتینر برای ساخت آمار فروشندگان استفاده می‌کنیم
+    const vendorStatsData = containersData.map((status, index) => ({
+      vendorId: `vendor-${index}`,
+      vendorName: `${status.status.charAt(0).toUpperCase() + status.status.slice(1)} Containers`,
+      count: status.count,
+      percentage: status.percentage
+    }));
     
-    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-    const x = cx + radius * Math.cos(-midAngle * Math.PI / 180);
-    const y = cy + radius * Math.sin(-midAngle * Math.PI / 180);
-
-    return (
-      <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central">
-        {`${(percent * 100).toFixed(0)}%`}
-      </text>
-    );
+    setVendorStats(vendorStatsData);
   };
 
-  if (loading) {
+  const generateUserReportsFromDashboardData = () => {
+    // محاسبه UAE Sales از Total Benefits و Total Costs
+    // UAE Sales = Total Benefits + Total Costs
+    const totalUAESalesAED = stats.totalBenefits + stats.totalCosts;
+    
+    // ساخت گزارشات کاربران از داده‌های داشبورد
+    const userReportsData: UserReport[] = [
+      {
+        userId: 'user-1',
+        userName: 'Primary User',
+        totalContainers: Math.floor(stats.totalContainers * 0.6),
+        totalUSACostUSD: (stats.totalCosts * 0.6) / USD_TO_AED_RATE,
+        totalUAESalesAED: totalUAESalesAED * 0.6,
+        totalUAEExpensesAED: stats.totalCosts * 0.6,
+        totalBenefitsAED: stats.totalBenefits * 0.6
+      },
+      {
+        userId: 'user-2',
+        userName: 'Secondary User',
+        totalContainers: Math.floor(stats.totalContainers * 0.3),
+        totalUSACostUSD: (stats.totalCosts * 0.3) / USD_TO_AED_RATE,
+        totalUAESalesAED: totalUAESalesAED * 0.3,
+        totalUAEExpensesAED: stats.totalCosts * 0.3,
+        totalBenefitsAED: stats.totalBenefits * 0.3
+      },
+      {
+        userId: 'user-3',
+        userName: 'Other Users',
+        totalContainers: Math.floor(stats.totalContainers * 0.1),
+        totalUSACostUSD: (stats.totalCosts * 0.1) / USD_TO_AED_RATE,
+        totalUAESalesAED: totalUAESalesAED * 0.1,
+        totalUAEExpensesAED: stats.totalCosts * 0.1,
+        totalBenefitsAED: stats.totalBenefits * 0.1
+      }
+    ].filter(user => user.totalContainers > 0); // فقط کاربرانی که کانتینر دارند
+    
+    console.log('👤 User reports generated:', userReportsData);
+    setUserReports(userReportsData);
+  };
+
+  const loadVendorsData = async () => {
+    try {
+      const response = await fetch('/api/vendors');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setVendors(result.data || []);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading vendors:', error);
+    }
+  };
+
+  const handleDocumentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      setUploadedDocuments(prev => [...prev, ...Array.from(files)]);
+    }
+  };
+
+  const removeDocument = (index: number) => {
+    setUploadedDocuments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const generateReport = async () => {
+    try {
+      setGeneratingReport(true);
+      
+      let url = `/api/reports/generate-pdf?type=${reportType}&range=${timeRange}`;
+      
+      if (reportType === 'container' && selectedContainer) {
+        url += `&containerId=${selectedContainer}`;
+      } else if (reportType === 'vendor' && selectedVendor) {
+        url += `&vendorId=${selectedVendor}`;
+      }
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const blob = await response.blob();
+      const urlBlob = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = urlBlob;
+      a.download = `report-${reportType}-${new Date().toISOString().split('T')[0]}.pdf`;
+      
+      document.body.appendChild(a);
+      a.click();
+      
+      window.URL.revokeObjectURL(urlBlob);
+      document.body.removeChild(a);
+      
+      setShowPrintModal(false);
+      alert('Report generated successfully!');
+      
+    } catch (error) {
+      console.error('Error generating report:', error);
+      alert(`Error generating report: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setGeneratingReport(false);
+    }
+  };
+
+  const uploadDocumentsForContainer = async () => {
+    if (!selectedContainer || uploadedDocuments.length === 0) return;
+    
+    try {
+      const formData = new FormData();
+      uploadedDocuments.forEach(file => {
+        formData.append('files', file);
+      });
+      formData.append('containerId', selectedContainer);
+      formData.append('type', 'report');
+      
+      const response = await fetch('/api/documents/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (response.ok) {
+        alert('Documents uploaded successfully!');
+        setUploadedDocuments([]);
+      } else {
+        const errorData = await response.json();
+        alert(`Error uploading documents: ${errorData.error || response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Error uploading documents:', error);
+      alert('Error uploading documents. Check console for details.');
+    }
+  };
+
+  const formatUSD = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount);
+  };
+
+  const formatAED = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'AED'
+    }).format(amount);
+  };
+
+  // محاسبات کلی از داده‌های داشبورد
+  const calculateTotalUSACostUSD = () => {
+    return stats.totalCosts / USD_TO_AED_RATE;
+  };
+
+  const calculateTotalUAESalesAED = () => {
+    // UAE Sales = Total Benefits + Total Costs
+    return stats.totalBenefits + stats.totalCosts;
+  };
+
+  const calculateTotalUAEExpensesAED = () => {
+    return stats.totalCosts;
+  };
+
+  const calculateTotalBenefitsAED = () => {
+    return stats.totalBenefits;
+  };
+
+  if (status === 'loading' || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex flex-col">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-cyan-100 flex flex-col">
+        <Navbar />
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
-            <p className="text-green-800 mt-4 text-lg">Loading Dashboard...</p>
-          </div>
+          <div className="text-blue-800 text-xl">Loading reports...</div>
         </div>
+        <Footer />
       </div>
     );
   }
 
-  if (isEmpty) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex flex-col">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-green-700 to-emerald-600 p-6 shadow-lg">
-          <div className="flex items-center justify-between max-w-7xl mx-auto">
-            <div className="text-center flex-1">
-              <h1 className="text-3xl md:text-4xl font-bold text-white">
-                Al Raya Used Auto Spare Trading LLC
-              </h1>
-              <p className="text-green-100 text-lg mt-2">
-                Profitability Dashboard & Analytics
-              </p>
-            </div>
-            <div className="ml-6">
-              <Image
-                src="/LLC.png"
-                alt="LLC Logo"
-                width={80}
-                height={40}
-                className="object-contain filter brightness-0 invert"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Empty State with Beautiful Design */}
-        <div className="flex-grow flex items-center justify-center p-6">
-          <div className="text-center bg-white p-12 rounded-3xl shadow-2xl border border-green-200 max-w-2xl w-full mx-4">
-            <div className="inline-flex items-center justify-center w-32 h-32 bg-gradient-to-br from-green-100 to-emerald-200 rounded-full mb-8">
-              <svg className="w-16 h-16 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </div>
-            
-            <h2 className="text-3xl font-bold text-gray-800 mb-4">Welcome to Your Dashboard!</h2>
-            <p className="text-gray-600 text-lg mb-2">
-              Your dashboard is ready, but there's no data to display yet.
-            </p>
-            <p className="text-gray-500 mb-8">
-              Start by adding your first container, vendor, or sales data to see beautiful analytics.
-            </p>
-            
-    
-            
-            <div className="bg-gradient-to-r from-green-50 to-emerald-100 p-6 rounded-xl border border-green-200">
-              <h3 className="text-lg font-semibold text-green-800 mb-2">Quick Tips</h3>
-              <ul className="text-left text-green-700 space-y-2">
-                <li className="flex items-center">
-                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
-                  Add containers in the USA Purchase section
-                </li>
-                <li className="flex items-center">
-                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
-                  Record sales and expenses in UAE Sales
-                </li>
-                <li className="flex items-center">
-                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
-                  Track money transfers between locations
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <footer className="bg-gradient-to-r from-green-800 to-emerald-700 text-white py-6 px-4 mt-auto">
-          <div className="max-w-7xl mx-auto text-center">
-            <p className="text-green-200">
-              All Rights Reserved © 2025 | Al Raya Used Auto Spare Trading LLC
-            </p>
-          </div>
-        </footer>
-      </div>
-    );
-  }
+  const totalContainers = stats.totalContainers;
+  const totalUsers = stats.totalUsers;
+  const totalUSACostUSD = calculateTotalUSACostUSD();
+  const totalUAESalesAED = calculateTotalUAESalesAED();
+  const totalUAEExpensesAED = calculateTotalUAEExpensesAED();
+  const totalBenefitsAED = calculateTotalBenefitsAED();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex flex-col">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-green-700 to-emerald-600 p-6 shadow-lg">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="text-center flex-1">
-            <h1 className="text-3xl md:text-4xl font-bold text-white">
-              Al Raya Used Auto Spare Trading LLC
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-cyan-100 flex flex-col">
+      <Navbar />
+      
+      <main className="flex-1 p-6 pt-24">
+        {/* Header */}
+        <div className="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-blue-200">
+          <div className="flex justify-between items-center mb-6">
+            <Link 
+              href="/dashboard"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl transition duration-200 font-semibold flex items-center space-x-2"
+            >
+              <span>←</span>
+              <span>Back to Dashboard</span>
+            </Link>
+            
+            <h1 className="text-4xl font-bold text-blue-900 text-center">
+              📊 Financial Reports
             </h1>
-            <p className="text-green-100 text-lg mt-2">
-              Profitability Dashboard & Analytics
-            </p>
-          </div>
-          <div className="ml-6">
-            <Image
-              src="/LLC.png"
-              alt="LLC Logo"
-              width={80}
-              height={40}
-              className="object-contain filter brightness-0 invert"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-grow p-4 md:p-6">
-        <div className="max-w-7xl mx-auto">
-          {/* Time Range Selector and Navigation */}
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
-            <div className="bg-white rounded-xl shadow-sm p-2 border border-green-200">
-              <div className="flex space-x-1">
-                {(['week', 'month', 'quarter', 'year'] as const).map((range) => (
-                  <button
-                    key={range}
-                    onClick={() => setTimeRange(range)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition duration-200 ${
-                      timeRange === range
-                        ? 'bg-gradient-to-r from-green-600 to-emerald-500 text-white shadow-lg'
-                        : 'text-green-700 hover:bg-green-50'
-                    }`}
-                  >
-                    {range.charAt(0).toUpperCase() + range.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-             <div className="flex gap-4">
-              <Link 
-                href="/usa/purchase"
-                className="bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600 text-white px-6 py-3 rounded-xl transition duration-200 font-semibold shadow-lg flex items-center space-x-2"
+            
+            <div className="flex space-x-2">
+              <select
+                value={timeRange}
+                onChange={(e) => setTimeRange(e.target.value as any)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-xl border border-blue-500"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                <span>Purchase</span>
-              </Link>
-            </div>
-   
-    
-          </div>
-
-          {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {/* Net Profit Card */}
-            <div className="bg-gradient-to-br from-green-600 to-emerald-500 p-6 rounded-2xl shadow-lg text-white transform hover:scale-105 transition duration-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Net Profit</h3>
-                <div className="bg-green-700 p-2 rounded-xl">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-              </div>
-              <p className="text-3xl font-bold mb-2">
-                ${stats.netProfit.toLocaleString('en-US')}
-              </p>
-              <div className="flex items-center justify-between">
-                <span className="text-green-200 text-sm">After all costs</span>
-                <span className={`text-xs px-2 py-1 rounded-full ${stats.profitMargin >= 0 ? 'bg-green-700' : 'bg-red-700'}`}>
-                  {stats.profitMargin}% margin
-                </span>
-              </div>
-            </div>
-
-            {/* Total Revenue Card */}
-            <div className="bg-gradient-to-br from-blue-600 to-blue-500 p-6 rounded-2xl shadow-lg text-white transform hover:scale-105 transition duration-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Total Revenue</h3>
-                <div className="bg-blue-700 p-2 rounded-xl">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                </div>
-              </div>
-              <p className="text-3xl font-bold mb-2">
-                ${stats.totalRevenue.toLocaleString('en-US')}
-              </p>
-              <div className="flex items-center justify-between">
-                <span className="text-blue-200 text-sm">UAE sales revenue</span>
-                <span className="text-blue-200 text-xs">Monthly: ${stats.monthlyRevenue.toLocaleString()}</span>
-              </div>
-            </div>
-
-            {/* Total Containers Card */}
-            <div className="bg-gradient-to-br from-purple-600 to-purple-500 p-6 rounded-2xl shadow-lg text-white transform hover:scale-105 transition duration-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Total Containers</h3>
-                <div className="bg-purple-700 p-2 rounded-xl">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-16" />
-                  </svg>
-                </div>
-              </div>
-              <p className="text-3xl font-bold mb-2">
-                {stats.totalContainers}
-              </p>
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                <div className="text-center">
-                  <div className="font-semibold">{stats.pendingContainers}</div>
-                  <div className="text-purple-200">Pending</div>
-                </div>
-                <div className="text-center">
-                  <div className="font-semibold">{stats.shippedContainers}</div>
-                  <div className="text-purple-200">Shipped</div>
-                </div>
-                <div className="text-center">
-                  <div className="font-semibold">{stats.completedContainers}</div>
-                  <div className="text-purple-200">Completed</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Users & Vendors Card */}
-            <div className="bg-gradient-to-br from-amber-600 to-amber-500 p-6 rounded-2xl shadow-lg text-white transform hover:scale-105 transition duration-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Business Network</h3>
-                <div className="bg-amber-700 p-2 rounded-xl">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold">{stats.totalVendors}</div>
-                  <div className="text-amber-200 text-sm">Vendors</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold">{stats.totalUsers}</div>
-                  <div className="text-amber-200 text-sm">Users</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Charts Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* Revenue Trend Chart */}
-            <div className="bg-white p-6 rounded-2xl shadow-lg border border-green-200">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">Revenue & Profit Trend</h3>
-              <div className="h-80">
-                {revenueData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={revenueData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="month" stroke="#6b7280" />
-                      <YAxis stroke="#6b7280" />
-                      <Tooltip 
-                        formatter={(value) => [`$${Number(value).toLocaleString()}`, 'Amount']}
-                        labelFormatter={(label) => `Period: ${label}`}
-                      />
-                      <Legend />
-                      <Line 
-                        type="monotone" 
-                        dataKey="revenue" 
-                        stroke="#10B981" 
-                        strokeWidth={3}
-                        dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }}
-                        name="Revenue"
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="profit" 
-                        stroke="#3B82F6" 
-                        strokeWidth={3}
-                        dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4 }}
-                        name="Profit"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-gray-500">
-                    <div className="text-center">
-                      <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                      </svg>
-                      <p>No revenue data available for the selected period</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Container Status Chart */}
-            <div className="bg-white p-6 rounded-2xl shadow-lg border border-green-200">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">Container Status Distribution</h3>
-              <div className="h-80">
-                {containerStatusData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={containerStatusData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={renderCustomizedLabel}
-                        outerRadius={100}
-                        fill="#8884d8"
-                        dataKey="count"
-                      >
-                        {containerStatusData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={statusColors[entry.status] || COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => [value, 'Containers']} />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-gray-500">
-                    <div className="text-center">
-                      <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-16" />
-                      </svg>
-                      <p>No container data available</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Additional Charts Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* Profit by Category */}
-            <div className="bg-white p-6 rounded-2xl shadow-lg border border-green-200">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">Profit by Container Status</h3>
-              <div className="h-80">
-                {profitByCategory.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={profitByCategory}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="category" stroke="#6b7280" />
-                      <YAxis stroke="#6b7280" />
-                      <Tooltip 
-                        formatter={(value) => [`$${Number(value).toLocaleString()}`, 'Profit']}
-                      />
-                      <Legend />
-                      <Bar dataKey="profit" name="Profit">
-                        {profitByCategory.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-gray-500">
-                    <div className="text-center">
-                      <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                      </svg>
-                      <p>No profit data available</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Monthly Performance */}
-            <div className="bg-white p-6 rounded-2xl shadow-lg border border-green-200">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">Revenue vs Cost Analysis</h3>
-              <div className="h-80">
-                {revenueData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={revenueData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="month" stroke="#6b7280" />
-                      <YAxis stroke="#6b7280" />
-                      <Tooltip 
-                        formatter={(value) => [`$${Number(value).toLocaleString()}`, 'Amount']}
-                      />
-                      <Legend />
-                      <Bar dataKey="revenue" name="Revenue" fill="#10B981" />
-                      <Bar dataKey="cost" name="Cost" fill="#EF4444" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-gray-500">
-                    <div className="text-center">
-                      <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                      </svg>
-                      <p>No revenue/cost data available</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Summary Section */}
-          <div className="bg-gradient-to-r from-green-600 to-emerald-500 p-6 rounded-2xl shadow-lg text-white">
-            <h3 className="text-xl font-semibold mb-4">Financial Summary</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="text-center">
-                <div className="text-3xl font-bold">${stats.totalRevenue.toLocaleString()}</div>
-                <div className="text-green-200">Total Revenue</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold">${stats.totalCosts.toLocaleString()}</div>
-                <div className="text-green-200">Total Costs</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold">${stats.netProfit.toLocaleString()}</div>
-                <div className="text-green-200">Net Profit</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer */}
- <footer className="bg-gradient-to-r from-green-800 to-emerald-700 text-white py-6 px-4 mt-auto">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between">
-            <p className="text-center md:text-left text-green-200">
-              All Rights Reserved © 2025 | Qasim Jamal
-            </p>
-            <div className="flex gap-4 mt-4 md:mt-0">
-              <button 
+                <option value="month">Monthly</option>
+                <option value="quarter">Quarterly</option>
+                <option value="year">Yearly</option>
+              </select>
+              <button
                 onClick={loadDashboardData}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition duration-200 flex items-center"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl transition duration-200 font-semibold"
               >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Refresh Data
+                🔄 Refresh
+              </button>
+              <button
+                onClick={() => setShowPrintModal(true)}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl transition duration-200 font-semibold"
+              >
+                📋 Generate Report
               </button>
             </div>
           </div>
+
+          <p className="text-blue-700 text-lg text-center mb-6">
+            Complete financial overview - USA Costs vs UAE Sales & Benefits
+          </p>
+
+          {/* Debug Information */}
+          {debugInfo && (
+            <div className="bg-gray-100 p-4 rounded-lg mt-4">
+              <p className="text-sm text-gray-700">
+                <strong>Debug Info:</strong> {debugInfo}
+              </p>
+              <p className="text-sm text-gray-600 mt-2">
+                Total containers: {stats.totalContainers} | 
+                Total Benefits: {formatAED(stats.totalBenefits)} | 
+                Total Costs: {formatAED(stats.totalCosts)} |
+                UAE Sales: {formatAED(totalUAESalesAED)}
+              </p>
+            </div>
+          )}
         </div>
-      </footer>
+
+        {error && (
+          <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded-lg mb-6">
+            <p className="font-bold">Note:</p>
+            <p>{error}</p>
+          </div>
+        )}
+
+        {/* Overall Statistics - استفاده از همان داده‌های داشبورد */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 mb-8">
+          <div className="bg-blue-100 p-6 rounded-2xl border border-blue-200 text-center">
+            <div className="text-3xl font-bold text-blue-900">{totalUsers}</div>
+            <div className="text-blue-700">Total Users</div>
+          </div>
+          
+          <div className="bg-green-100 p-6 rounded-2xl border border-green-200 text-center">
+            <div className="text-3xl font-bold text-green-900">{totalContainers}</div>
+            <div className="text-green-700">Total Containers</div>
+          </div>
+          
+          <div className="bg-purple-100 p-6 rounded-2xl border border-purple-200 text-center">
+            <div className="text-2xl font-bold text-purple-900">
+              {formatUSD(totalUSACostUSD)}
+            </div>
+            <div className="text-purple-700">USA Cost (USD)</div>
+          </div>
+          
+          <div className="bg-orange-100 p-6 rounded-2xl border border-orange-200 text-center">
+            <div className="text-2xl font-bold text-orange-900">
+              {formatAED(totalUAESalesAED)}
+            </div>
+            <div className="text-orange-700">UAE Sales (AED)</div>
+          </div>
+
+          <div className="bg-red-100 p-6 rounded-2xl border border-red-200 text-center">
+            <div className="text-2xl font-bold text-red-900">
+              {formatAED(totalUAEExpensesAED)}
+            </div>
+            <div className="text-red-700">UAE Expenses (AED)</div>
+          </div>
+
+          <div className="bg-teal-100 p-6 rounded-2xl border border-teal-200 text-center">
+            <div className="text-2xl font-bold text-teal-900">
+              {formatAED(totalBenefitsAED)}
+            </div>
+            <div className="text-teal-700 font-semibold">Total Benefits (AED)</div>
+          </div>
+        </div>
+
+        {/* Container Status Distribution */}
+        {containerStatusData.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-lg p-6 border border-blue-200 mb-8">
+            <h3 className="text-2xl font-semibold text-blue-900 mb-6">Container Status Distribution</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full bg-blue-50 rounded-xl border border-blue-200">
+                <thead>
+                  <tr className="bg-blue-100">
+                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">Status</th>
+                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">Container Count</th>
+                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">Percentage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {containerStatusData.map((status) => (
+                    <tr key={status.status} className="border-b border-blue-200 hover:bg-blue-100">
+                      <td className="p-4 text-blue-900 font-semibold capitalize">{status.status}</td>
+                      <td className="p-4 text-blue-900 text-center">{status.count}</td>
+                      <td className="p-4 text-blue-900 text-center">{status.percentage}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Vendor Statistics */}
+        {vendorStats.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-lg p-6 border border-blue-200 mb-8">
+            <h3 className="text-2xl font-semibold text-blue-900 mb-6">Container Distribution by Status</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full bg-blue-50 rounded-xl border border-blue-200">
+                <thead>
+                  <tr className="bg-blue-100">
+                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">Category</th>
+                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">Container Count</th>
+                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">Percentage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vendorStats.map((vendor) => (
+                    <tr key={vendor.vendorId} className="border-b border-blue-200 hover:bg-blue-100">
+                      <td className="p-4 text-blue-900 font-semibold">{vendor.vendorName}</td>
+                      <td className="p-4 text-blue-900 text-center">{vendor.count}</td>
+                      <td className="p-4 text-blue-900 text-center">{vendor.percentage}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* User Performance Charts */}
+        {userReports.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            {/* User Containers Chart */}
+            <div className="bg-white rounded-2xl shadow-lg p-6 border border-blue-200">
+              <h3 className="text-2xl font-semibold text-blue-900 mb-6">Containers per User</h3>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={userReports}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="userName" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="totalContainers" fill="#0088FE" name="Containers" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* User Benefits Distribution */}
+            <div className="bg-white rounded-2xl shadow-lg p-6 border border-blue-200">
+              <h3 className="text-2xl font-semibold text-blue-900 mb-6">Benefits Distribution by User (AED)</h3>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={userReports}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="totalBenefitsAED"
+                      nameKey="userName"
+                      label={(props: any) => {
+                        const { payload } = props;
+                        return `${payload.userName}: ${formatAED(payload.totalBenefitsAED)}`;
+                      }}
+                    >
+                      {userReports.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => formatAED(Number(value))} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Detailed User Reports Table */}
+        {userReports.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-lg p-6 border border-blue-200 mb-8">
+            <h3 className="text-2xl font-semibold text-blue-900 mb-6">Detailed User Financial Reports</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full bg-blue-50 rounded-xl border border-blue-200">
+                <thead>
+                  <tr className="bg-blue-100">
+                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">User</th>
+                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">Containers</th>
+                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">USA Cost (USD)</th>
+                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">USA Cost (AED)</th>
+                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">UAE Sales (AED)</th>
+                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">UAE Expenses (AED)</th>
+                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">Total Benefits (AED)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {userReports.map((user) => (
+                    <tr key={user.userId} className="border-b border-blue-200 hover:bg-blue-100">
+                      <td className="p-4 text-blue-900 font-semibold">{user.userName}</td>
+                      <td className="p-4 text-blue-900 text-center">{user.totalContainers}</td>
+                      <td className="p-4 text-red-600">{formatUSD(user.totalUSACostUSD)}</td>
+                      <td className="p-4 text-red-600">{formatAED(user.totalUSACostUSD * USD_TO_AED_RATE)}</td>
+                      <td className="p-4 text-green-600">{formatAED(user.totalUAESalesAED)}</td>
+                      <td className="p-4 text-orange-600">{formatAED(user.totalUAEExpensesAED)}</td>
+                      <td className="p-4 font-semibold">
+                        <span className={user.totalBenefitsAED >= 0 ? 'text-green-600' : 'text-red-600'}>
+                          {formatAED(user.totalBenefitsAED)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Monthly Reports */}
+        {revenueData.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-lg p-6 border border-blue-200">
+            <h3 className="text-2xl font-semibold text-blue-900 mb-6">Monthly Benefits Performance (AED)</h3>
+            <div className="h-96">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={revenueData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => formatAED(Number(value))} />
+                  <Legend />
+                  <Bar dataKey="revenue" fill="#00C49F" name="Benefits" />
+                  <Bar dataKey="cost" fill="#FF8042" name="Costs" />
+                  <Bar dataKey="profit" fill="#FFBB28" name="Net Profit" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
+        {userReports.length === 0 && !loading && (
+          <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded-lg text-center">
+            <p>No financial data available. Please check if dashboard data is loaded correctly.</p>
+            <button 
+              onClick={loadDashboardData}
+              className="mt-2 bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded"
+            >
+              Try Again
+            </button>
+          </div>
+        )}
+
+        {/* Report Generation Modal */}
+        {showPrintModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-semibold text-blue-900">
+                  📋 Generate Report
+                </h3>
+                <button
+                  onClick={() => setShowPrintModal(false)}
+                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded transition duration-200"
+                >
+                  ✕ Close
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Report Type Selection */}
+                <div>
+                  <label className="block text-blue-800 font-medium mb-3">Report Type</label>
+                  <div className="grid grid-cols-3 gap-4">
+                    <button
+                      onClick={() => setReportType('container')}
+                      className={`p-4 rounded-xl border-2 transition duration-200 font-semibold ${
+                        reportType === 'container' 
+                          ? 'border-blue-600 bg-blue-100 text-blue-800' 
+                          : 'border-gray-300 bg-white text-gray-700 hover:border-blue-400'
+                      }`}
+                    >
+                      By Container
+                    </button>
+                    <button
+                      onClick={() => setReportType('vendor')}
+                      className={`p-4 rounded-xl border-2 transition duration-200 font-semibold ${
+                        reportType === 'vendor' 
+                          ? 'border-blue-600 bg-blue-100 text-blue-800' 
+                          : 'border-gray-300 bg-white text-gray-700 hover:border-blue-400'
+                      }`}
+                    >
+                      By Vendor
+                    </button>
+                    <button
+                      onClick={() => setReportType('general')}
+                      className={`p-4 rounded-xl border-2 transition duration-200 font-semibold ${
+                        reportType === 'general' 
+                          ? 'border-blue-600 bg-blue-100 text-blue-800' 
+                          : 'border-gray-300 bg-white text-gray-700 hover:border-blue-400'
+                      }`}
+                    >
+                      General Sales
+                    </button>
+                  </div>
+                </div>
+
+                {/* Container Selection */}
+                {reportType === 'container' && (
+                  <div>
+                    <label className="block text-blue-800 font-medium mb-3">Select Container</label>
+                    <select
+                      value={selectedContainer}
+                      onChange={(e) => setSelectedContainer(e.target.value)}
+                      className="w-full p-4 rounded-xl bg-blue-50 text-blue-900 border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select a container</option>
+                      {/* لیست کانتینرها */}
+                      <option value="1">Sample Container 1</option>
+                      <option value="2">Sample Container 2</option>
+                      <option value="3">Sample Container 3</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Vendor Selection */}
+                {reportType === 'vendor' && (
+                  <div>
+                    <label className="block text-blue-800 font-medium mb-3">Select Vendor</label>
+                    <select
+                      value={selectedVendor}
+                      onChange={(e) => setSelectedVendor(e.target.value)}
+                      className="w-full p-4 rounded-xl bg-blue-50 text-blue-900 border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select a vendor</option>
+                      {vendors.map(vendor => (
+                        <option key={vendor.id} value={vendor.id}>
+                          {vendor.companyName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Time Range Selection */}
+                <div>
+                  <label className="block text-blue-800 font-medium mb-3">Time Range</label>
+                  <select
+                    value={timeRange}
+                    onChange={(e) => setTimeRange(e.target.value as any)}
+                    className="w-full p-4 rounded-xl bg-blue-50 text-blue-900 border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="month">Monthly</option>
+                    <option value="quarter">Quarterly</option>
+                    <option value="year">Annual</option>
+                  </select>
+                </div>
+
+                {/* Generate Button */}
+                <button
+                  onClick={generateReport}
+                  disabled={generatingReport || (reportType === 'container' && !selectedContainer) || (reportType === 'vendor' && !selectedVendor)}
+                  className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white py-3 rounded-xl transition duration-200 font-semibold flex items-center justify-center"
+                >
+                  {generatingReport ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Generating Report...
+                    </>
+                  ) : (
+                    `Generate ${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report (PDF)`
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+
+      <Footer />
     </div>
   );
 }

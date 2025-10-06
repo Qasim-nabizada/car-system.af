@@ -66,6 +66,7 @@ interface SessionUser {
   id: string;
   name: string;
   username: string;
+   role?: string;
 }
 
 interface Session {
@@ -621,81 +622,78 @@ const editContainer = (container: ContainerWithContents) => {
   setStep('contents');
 };
 
-  const updateContainer = async () => {
-    if (!editingContainer) return;
+ const updateContainer = async () => {
+  if (!editingContainer) return;
 
-    try {
-      setLoading(true);
-      const { contents, rent: rentValue, grandTotal } = prepareDataForSave();
+  try {
+    setLoading(true);
+    const { contents, rent: rentValue, grandTotal } = prepareDataForSave();
+    
+    const processedContents = contents.map(item => ({
+      ...item,
+      price: Number(item.price) || 0,
+      recovery: Number(item.recovery) || 0,
+      cutting: Number(item.cutting) || 0,
+      total: Number(item.total) || 0,
+      number: Number(item.number) || 0
+    }));
+
+    const requestData = {
+      containerId: currentContainer.containerId,
+      status: currentContainer.status,
+      city: currentContainer.city,
+      date: currentContainer.date,
+      vendorId: currentContainer.vendorId,
+      rent: Number(rentValue) || 0,
+      grandTotal: Number(grandTotal) || 0,
+      contents: processedContents
+    };
+
+    console.log('🔄 Sending update request:', requestData);
+
+    // استفاده از endpoint جدید
+    const response = await fetch(`/api/purchase/containers/${editingContainer.id}/update`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestData)
+    });
+    
+    console.log('📊 Update response:', response.status);
+
+    if (response.ok) {
+      const updatedContainer = await response.json();
+      console.log('✅ Container updated successfully:', updatedContainer);
       
-      const processedContents = contents.map(item => ({
-        ...item,
-        price: Number(item.price) || 0,
-        recovery: Number(item.recovery) || 0,
-        cutting: Number(item.cutting) || 0,
-        total: Number(item.total) || 0,
-        number: Number(item.number) || 0
-      }));
-
-        // ساختار داده‌ای ساده‌تر برای ارسال به سرور
-      const requestData = {
-        containerId: currentContainer.containerId,
-        status: currentContainer.status,
-        city: currentContainer.city,
-        date: currentContainer.date,
-        vendorId: currentContainer.vendorId,
-        rent: Number(rentValue) || 0,
-        grandTotal: Number(grandTotal) || 0,
-        contents: processedContents
-      };
-
-      console.log('Sending update request:', requestData);
-
-      const response = await fetch(`/api/purchase/containers/${editingContainer.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData)
-      });
+      // آپدیت state
+      setContainers(prev => prev.map(container => 
+        container.id === editingContainer.id ? updatedContainer : container
+      ));
       
-      if (response.ok) {
-        const updatedContainer = await response.json();
-        
-        setContainers(prev => prev.map(container => 
-          container.id === editingContainer.id ? updatedContainer : container
-        ));
-        
-        setSearchResults(prev => prev.map(container => 
-          container.id === editingContainer.id ? updatedContainer : container
-        ));
-        
-        setEditingContainer(null);
-        setEditMode(false);
-        setCurrentContents([]);
-        setRent('');
-        setStep('containers');
-        
-        alert('Container updated successfully!');
-      } else {
-        const errorMessage = await handleApiError(response, 'Failed to update container');
-        
-        // اگر خطای 404 باشد، ممکن است کانتینر وجود نداشته باشد
-        if (response.status === 404) {
-          alert(`Container not found. It may have been deleted. ${errorMessage}`);
-          // بارگذاری مجدد لیست کانتینرها
-          loadContainers();
-        } else {
-          alert(`Error updating container: ${errorMessage}`);
-        }
-      }
-    } catch (error) {
-      console.error('Error updating container:', error);
-      alert('Error updating container. Check console for details.');
-    } finally {
-      setLoading(false);
+      setSearchResults(prev => prev.map(container => 
+        container.id === editingContainer.id ? updatedContainer : container
+      ));
+      
+      // ریست کردن state
+      setEditingContainer(null);
+      setEditMode(false);
+      setCurrentContents([]);
+      setRent('');
+      setStep('containers');
+      
+      alert('✅ Container updated successfully!');
+    } else {
+      const errorMessage = await handleApiError(response, 'Failed to update container');
+      alert(`❌ Error updating container: ${errorMessage}`);
     }
-  };
+  } catch (error) {
+    console.error('❌ Error updating container:', error);
+    alert('❌ Error updating container. Check console for details.');
+  } finally {
+    setLoading(false);
+  }
+};
 
 const deleteContainer = async (containerId: string) => {
   if (!confirm('Are you sure you want to delete this container? This action cannot be undone.')) {
@@ -703,145 +701,121 @@ const deleteContainer = async (containerId: string) => {
   }
 
   try {
-    // ابتدا با DELETE امتحان کنید
-    let response = await fetch(`/api/purchase/containers/${containerId}`, {
-      method: 'DELETE',
+    // استفاده از endpoint جدید بدون permission
+    const response = await fetch(`/api/purchase/containers/${containerId}/delete`, {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       }
     });
     
-    // اگر DELETE کار نکرد، با POST امتحان کنید
-    if (!response.ok && response.status === 405) {
-      response = await fetch(`/api/purchase/containers/${containerId}/delete`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-    }
-    
     if (response.ok) {
       setContainers(prev => prev.filter(container => container.id !== containerId));
       setSearchResults(prev => prev.filter(container => container.id !== containerId));
-      alert('Container deleted successfully!');
+      alert('✅ Container deleted successfully!');
     } else {
       const errorMessage = await handleApiError(response, 'Failed to delete container');
-      alert(`Error deleting container: ${errorMessage}`);
+      alert(`❌ Error deleting container: ${errorMessage}`);
     }
   } catch (error) {
-    console.error('Error deleting container:', error);
-    alert('Error deleting container. Check console for details.');
+    console.error('❌ Error deleting container:', error);
+    alert('❌ Error deleting container. Check console for details.');
   }
 };
 
   const deleteContentItem = async (contentId: string, containerId: string) => {
-    if (!contentId) {
-      alert('Content ID is missing. Please refresh the page and try again.');
-      return;
-    }
+  if (!contentId) {
+    alert('Content ID is missing. Please refresh the page and try again.');
+    return;
+  }
 
-    if (!confirm('Are you sure you want to delete this content item?')) {
-      return;
-    }
+  if (!confirm('Are you sure you want to delete this content item?')) {
+    return;
+  }
 
-    try {
-      const response = await fetch(`/api/purchase/contents/${contentId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ containerId })
-      });
+  try {
+    // استفاده از endpoint جدید بدون permission
+    const response = await fetch(`/api/purchase/contents/${contentId}/delete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ containerId })
+    });
+    
+    if (response.ok) {
+      // به‌روزرسانی وضعیت محلی
+      setContainers(prev => prev.map(container => {
+        if (container.id === containerId) {
+          return {
+            ...container,
+            contents: container.contents.filter(content => content.id !== contentId)
+          };
+        }
+        return container;
+      }));
       
-      if (response.ok) {
-        // به‌روزرسانی وضعیت محلی
-        setContainers(prev => prev.map(container => {
-          if (container.id === containerId) {
-            return {
-              ...container,
-              contents: container.contents.filter(content => content.id !== contentId)
-            };
-          }
-          return container;
-        }));
-        
-        // اگر در حال ویرایش هستیم، لیست کنونی را نیز به‌روزرسانی کنیم
-        if (editingContainer && editingContainer.id === containerId) {
-          setCurrentContents(prev => prev.filter(content => content.id !== contentId));
-        }
-        
-        alert('Content item deleted successfully!');
-      } else {
-        const errorMessage = await handleApiError(response, 'Failed to delete content item');
-        
-        // اگر خطای 404 باشد، آیتم از قبل حذف شده است
-        if (response.status === 404) {
-          alert('Content item not found. It may have already been deleted.');
-          // بارگذاری مجدد لیست کانتینرها
-          loadContainers();
-        } else {
-          alert(`Error deleting content item: ${errorMessage}`);
-        }
+      // اگر در حال ویرایش هستیم، لیست کنونی را نیز به‌روزرسانی کنیم
+      if (editingContainer && editingContainer.id === containerId) {
+        setCurrentContents(prev => prev.filter(content => content.id !== contentId));
       }
-    } catch (error) {
-      console.error('Error deleting content item:', error);
-      alert('Error deleting content item. Check console for details.');
-    }
-  };
-
-  const markContainerComplete = async (containerId: string) => {
-    try {
-      const response = await fetch(`/api/purchase/containers/${containerId}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: 'completed' })
-      });
       
-      if (response.ok) {
-        alert('Container marked as complete and moved to sales!');
-        // بارگذاری مجدد لیست کانتینرها
+      alert('✅ Content item deleted successfully!');
+    } else {
+      const errorMessage = await handleApiError(response, 'Failed to delete content item');
+      
+      if (response.status === 404) {
+        alert('Content item not found. It may have already been deleted.');
         loadContainers();
       } else {
-        // اگر PATCH کار نکرد، با PUT امتحان کنید
-        if (response.status === 405) {
-          await markContainerCompleteWithPut(containerId);
-        } else {
-          const errorMessage = await handleApiError(response, 'Failed to update container status');
-          alert(`Error: ${errorMessage}`);
-        }
+        alert(`❌ Error deleting content item: ${errorMessage}`);
       }
-    } catch (error) {
-      console.error('Error updating container:', error);
-      alert('Error updating container. Check console for details.');
     }
-  };
+  } catch (error) {
+    console.error('❌ Error deleting content item:', error);
+    alert('❌ Error deleting content item. Check console for details.');
+  }
+};
 
-  // تابع جایگزین برای تغییر وضعیت با PUT
-  const markContainerCompleteWithPut = async (containerId: string) => {
-    try {
-      const response = await fetch(`/api/purchase/containers/${containerId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: 'completed' })
-      });
-      
-      if (response.ok) {
-        alert('Container marked as complete and moved to sales!');
-        loadContainers();
-      } else {
-        const errorMessage = await handleApiError(response, 'Failed to update container status');
-        alert(`Error: ${errorMessage}`);
+const markContainerComplete = async (containerId: string) => {
+  try {
+    console.log('🔄 Marking container as complete:', containerId);
+
+    // استفاده از endpoint جدید
+    const response = await fetch(`/api/purchase/containers/${containerId}/complete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       }
-    } catch (error) {
-      console.error('Error updating container status with PUT:', error);
-      alert('Error updating container. Check console for details.');
+    });
+
+    console.log('📊 Complete endpoint response:', response.status);
+
+    if (response.ok) {
+      const updatedContainer = await response.json();
+      console.log('✅ Container marked as complete:', updatedContainer);
+      
+      // آپدیت state local
+      setContainers(prev => prev.map(c => 
+        c.id === containerId ? { ...c, status: 'completed' } : c
+      ));
+      
+      setSearchResults(prev => prev.map(c => 
+        c.id === containerId ? { ...c, status: 'completed' } : c
+      ));
+      
+      alert('✅ Container marked as complete and moved to sales!');
+    } else {
+      const errorText = await response.text();
+      console.error('❌ API error:', errorText);
+      alert(`❌ Failed to mark container complete: ${response.status}`);
     }
-  };
+
+  } catch (error) {
+    console.error('❌ Error in markContainerComplete:', error);
+    alert('❌ Error updating container. Check console for details.');
+  }
+};
 
  const deleteDocument = async (documentId: string) => {
   if (!confirm('Are you sure you want to delete this document?')) {
@@ -1261,6 +1235,8 @@ const viewMyTransfers = async () => {
     setShowDocumentsModal(true);
   };
 
+
+  
   const testApiEndpoints = async () => {
     console.log('Testing API endpoints...');
     
@@ -1984,12 +1960,12 @@ const renderContentItems = () => {
                             >
                               Documents
                             </button>
-                            <button
-                              onClick={() => editContainer(container)}
-                              className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm transition duration-200"
-                            >
-                              Edit
-                            </button>
+                          <button
+  onClick={() => editContainer(container)}
+  className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm transition duration-200"
+>
+  Edit
+</button>
                             <button
                               onClick={() => printContainer(container)}
                               className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1 rounded text-sm transition duration-200"
@@ -1997,12 +1973,13 @@ const renderContentItems = () => {
                               Print
                             </button>
                             {container.status !== 'completed' && (
-                              <button
-                                onClick={() => markContainerComplete(container.id)}
-                                className="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm transition duration-200"
-                              >
-                                Mark Complete
-                              </button>
+                              // در بخش دکمه‌های container، این را جایگزین کنید:
+<button
+  onClick={() => markContainerComplete(container.id)}
+  className="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm transition duration-200"
+>
+  Mark Complete
+</button>
                             )}
                             <button
                               onClick={() => deleteContainer(container.id)}
@@ -2206,53 +2183,56 @@ const renderContentItems = () => {
               <div>
                 <h4 className="text-green-200 mb-3 font-semibold">Existing Documents ({documents.length})</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {documents.map((doc) => {
-                    const isImage = doc.name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-                    const isPDF = doc.name.match(/\.(pdf)$/i);
-                    
-                    return (
-                      <div key={doc.id} className="bg-green-700 p-3 rounded-lg">
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="text-white text-sm truncate flex-1" title={doc.name}>
-                            {doc.name}
-                          </span>
-                          <div className="flex gap-2 ml-2">
-                            <a 
-                              href={doc.url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-xs"
-                            >
-                              {isImage ? 'View' : isPDF ? 'Open' : 'Download'}
-                            </a>
-                            <button
-                              onClick={() => deleteDocument(doc.id)}
-                              className="bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded text-xs"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                        
-                        {isImage && (
-                          <div className="mt-2">
-                            <img 
-                              src={doc.url} 
-                              alt={doc.name}
-                              className="w-full h-32 object-cover rounded-lg"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                              }}
-                            />
-                          </div>
-                        )}
-                        
-                        <div className="text-xs text-green-300 mt-2">
-                          Uploaded: {new Date(doc.createdAt).toLocaleDateString()}
-                        </div>
-                      </div>
-                    );
-                  })}
+               // در تابع viewContainerDocuments و بخش نمایش documents
+{documents.map((doc) => {
+  // چک کردن که doc.name وجود دارد
+  const fileName = doc.name || 'document';
+  const isImage = fileName && fileName.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+  const isPDF = fileName && fileName.match(/\.(pdf)$/i);
+  
+  return (
+    <div key={doc.id} className="bg-green-700 p-3 rounded-lg">
+      <div className="flex justify-between items-start mb-2">
+        <span className="text-white text-sm truncate flex-1" title={fileName}>
+          {fileName}
+        </span>
+        <div className="flex gap-2 ml-2">
+          <a 
+            href={doc.url} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-xs"
+          >
+            {isImage ? 'View' : isPDF ? 'Open' : 'Download'}
+          </a>
+          <button
+            onClick={() => deleteDocument(doc.id)}
+            className="bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded text-xs"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+      
+      {isImage && (
+        <div className="mt-2">
+          <img 
+            src={doc.url} 
+            alt={fileName}
+            className="w-full h-32 object-cover rounded-lg"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        </div>
+      )}
+      
+      <div className="text-xs text-green-300 mt-2">
+        Uploaded: {new Date(doc.createdAt).toLocaleDateString()}
+      </div>
+    </div>
+  );
+})}
                 </div>
               </div>
             ) : (

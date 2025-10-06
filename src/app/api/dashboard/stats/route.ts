@@ -1,83 +1,133 @@
+// app/api/dashboard/stats/route.ts
 import { NextResponse } from 'next/server';
 import prisma from '../../../../lib/database';
 
 export async function GET() {
   try {
-    // Get counts - فقط داده‌های واقعی
-    const [
-      totalVendors,
-      totalUsers,
-      totalContainers,
-      pendingContainers,
-      shippedContainers,
-      completedContainers,
-      totalSales,
-      totalExpends
-    ] = await Promise.all([
-      prisma.vendor.count(),
-      prisma.user.count({ where: { 
-        role: { not: 'admin' },
-        isActive: true 
-      }}),
-      prisma.purchaseContainer.count(),
-      prisma.purchaseContainer.count({ where: { status: 'pending' } }),
-      prisma.purchaseContainer.count({ where: { status: 'shipped' } }),
-      prisma.purchaseContainer.count({ where: { status: 'completed' } }),
-      prisma.uAESale.aggregate({
-        _sum: { salePrice: true }
-      }),
-      prisma.uAEExpend.aggregate({
-        _sum: { amount: true }
-      })
-    ]);
+    console.log('🔍 Starting dashboard stats calculation...');
 
-    // Calculate total USA purchase costs
-    const usaPurchaseCosts = await prisma.purchaseContainer.aggregate({
-      _sum: { grandTotal: true }
-    });
-
-    const totalRevenue = totalSales._sum.salePrice || 0;
-    const totalUAEExpenses = totalExpends._sum.amount || 0;
-    const totalUSACosts = usaPurchaseCosts._sum.grandTotal || 0;
-    
-    // Convert USD to AED (1 USD = 3.67 AED)
-    const totalUSACostsAED = totalUSACosts * 3.67;
-    
-    const totalCosts = totalUAEExpenses + totalUSACostsAED;
-    const netProfit = totalRevenue - totalCosts;
-    const profitMargin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
-
-    // Calculate monthly revenue (current month)
-    const currentMonth = new Date();
-    const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-    
-    const monthlySales = await prisma.uAESale.aggregate({
-      _sum: { salePrice: true },
-      where: {
-        createdAt: {
-          gte: firstDayOfMonth
-        }
+    // Get all UAE sales data
+    const allSales = await prisma.uAESale.findMany({
+      select: {
+        salePrice: true
       }
     });
 
-    const monthlyRevenue = monthlySales._sum.salePrice || 0;
+    // Get all UAE expenses data
+    const allExpenses = await prisma.uAEExpend.findMany({
+      select: {
+        amount: true
+      }
+    });
 
-    return NextResponse.json({
+    // Get all USA purchase data
+    const allContainers = await prisma.purchaseContainer.findMany({
+      select: {
+        grandTotal: true
+      }
+    });
+
+    console.log('📊 Data counts - Sales:', allSales.length, 'Expenses:', allExpenses.length, 'Containers:', allContainers.length);
+
+    // Calculate totals
+    const totalSalesUAE = allSales.reduce((sum, sale) => sum + (sale.salePrice || 0), 0);
+    const totalExpendUAE = allExpenses.reduce((sum, expense) => sum + (expense.amount || 0), 0);
+    const totalBuyUSA = allContainers.reduce((sum, container) => sum + ((container.grandTotal || 0) * 3.67), 0);
+
+    // Calculate benefits according to your formula: Total Sale UAE - (Total Buy USA + Total Expend UAE)
+    const totalBenefits = totalSalesUAE - (totalBuyUSA + totalExpendUAE);
+    const totalCosts = totalBuyUSA + totalExpendUAE;
+
+    console.log('💰 Calculations:');
+    console.log('  - Total UAE Sales:', totalSalesUAE);
+    console.log('  - Total USA Buy (AED):', totalBuyUSA);
+    console.log('  - Total UAE Expenses:', totalExpendUAE);
+    console.log('  - Total Costs:', totalCosts);
+    console.log('  - Total Benefits:', totalBenefits);
+
+    // Calculate profit margin
+    const profitMargin = totalSalesUAE > 0 ? Math.round((totalBenefits / totalSalesUAE) * 100) : 0;
+
+    // Get other statistics
+    const totalVendors = await prisma.vendor.count();
+    const totalUsers = await prisma.user.count();
+    const totalContainersCount = allContainers.length;
+    
+    // Get container status counts
+    const containersWithStatus = await prisma.purchaseContainer.findMany({
+      select: {
+        status: true
+      }
+    });
+    
+    const pendingContainers = containersWithStatus.filter(c => c.status === 'pending').length;
+    const shippedContainers = containersWithStatus.filter(c => c.status === 'shipped').length;
+    const completedContainers = containersWithStatus.filter(c => c.status === 'completed').length;
+
+    // Monthly benefits (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const recentSales = await prisma.uAESale.aggregate({
+      where: {
+        createdAt: {
+          gte: thirtyDaysAgo
+        }
+      },
+      _sum: {
+        salePrice: true
+      }
+    });
+
+    const recentExpenses = await prisma.uAEExpend.aggregate({
+      where: {
+        createdAt: {
+          gte: thirtyDaysAgo
+        }
+      },
+      _sum: {
+        amount: true
+      }
+    });
+
+    const recentContainers = await prisma.purchaseContainer.findMany({
+      where: {
+        createdAt: {
+          gte: thirtyDaysAgo
+        }
+      },
+      select: {
+        grandTotal: true
+      }
+    });
+
+    const monthlySales = recentSales._sum.salePrice || 0;
+    const monthlyExpenses = recentExpenses._sum.amount || 0;
+    const monthlyUSABuy = recentContainers.reduce((sum, container) => sum + ((container.grandTotal || 0) * 3.67), 0);
+    const monthlyBenefits = monthlySales - (monthlyUSABuy + monthlyExpenses);
+
+    const stats = {
       totalVendors,
       totalUsers,
-      totalContainers,
+      totalContainers: totalContainersCount,
       pendingContainers,
       shippedContainers,
       completedContainers,
-      totalRevenue,
+      totalBenefits: Math.round(totalBenefits),
       totalCosts: Math.round(totalCosts),
-      netProfit: Math.round(netProfit),
+      netProfit: Math.round(totalBenefits), // Same as totalBenefits
       profitMargin,
-      monthlyRevenue: Math.round(monthlyRevenue)
-    });
+      monthlyBenefits: Math.round(monthlyBenefits)
+    };
+
+    console.log('🎯 Final Stats:', stats);
+
+    return NextResponse.json(stats);
+
   } catch (error) {
-    console.error('Dashboard stats error:', error);
-    // در صورت خطا، مقادیر صفر برگردانید
+    console.error('❌ Dashboard stats error:', error);
+    
+    // Return zero data for debugging
     return NextResponse.json({
       totalVendors: 0,
       totalUsers: 0,
@@ -85,11 +135,11 @@ export async function GET() {
       pendingContainers: 0,
       shippedContainers: 0,
       completedContainers: 0,
-      totalRevenue: 0,
+      totalBenefits: 0,
       totalCosts: 0,
       netProfit: 0,
       profitMargin: 0,
-      monthlyRevenue: 0
+      monthlyBenefits: 0
     });
   }
 }
