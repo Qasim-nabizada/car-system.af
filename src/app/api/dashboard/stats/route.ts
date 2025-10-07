@@ -2,6 +2,9 @@
 import { NextResponse } from 'next/server';
 import prisma from '../../../../lib/database';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
   try {
     console.log('🔍 Starting dashboard stats calculation for ALL containers...');
@@ -139,7 +142,16 @@ export async function GET() {
 
     console.log('🎯 Final Dashboard Stats:', stats);
 
-    return NextResponse.json(stats);
+    // Set headers to prevent caching
+    const headers = new Headers();
+    headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    headers.set('Pragma', 'no-cache');
+    headers.set('Expires', '0');
+
+    return new NextResponse(JSON.stringify(stats), {
+      status: 200,
+      headers: headers
+    });
 
   } catch (error) {
     console.error('❌ Dashboard stats error:', error);

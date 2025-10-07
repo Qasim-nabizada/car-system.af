@@ -1,7 +1,7 @@
 // app/dashboard/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -70,6 +70,17 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'quarter' | 'year'>('month');
   const [isEmpty, setIsEmpty] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log('🔄 Auto-refreshing dashboard data...');
+      loadDashboardData();
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -82,7 +93,7 @@ export default function Dashboard() {
     loadDashboardData();
   }, [session, status, router, timeRange]);
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -90,8 +101,17 @@ export default function Dashboard() {
       
       console.log('🔄 Loading dashboard data...');
       
-      // Load dashboard statistics
-      const statsResponse = await fetch('/api/dashboard/stats');
+      // Add timestamp to prevent caching
+      const timestamp = new Date().getTime();
+      
+      // Load dashboard statistics with cache busting
+      const statsResponse = await fetch(`/api/dashboard/stats?t=${timestamp}`, {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
       
       if (!statsResponse.ok) {
         throw new Error(`HTTP error! status: ${statsResponse.status}`);
@@ -101,6 +121,7 @@ export default function Dashboard() {
       console.log('📊 Dashboard stats loaded:', statsData);
       
       setStats(statsData);
+      setLastUpdate(new Date());
       
       // Generate chart data from stats
       generateChartData(statsData);
@@ -116,7 +137,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Generate chart data from dashboard stats
   const generateChartData = (statsData: DashboardStats) => {
@@ -383,7 +404,17 @@ export default function Dashboard() {
       {/* Main Content */}
       <div className="flex-grow p-4 md:p-6">
         <div className="max-w-7xl mx-auto">
-      
+          {/* Last Update Info */}
+          <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-blue-700">
+                <strong>Live Data:</strong> Auto-updates every 30 seconds
+              </p>
+              <p className="text-sm text-blue-600">
+                Last update: {lastUpdate.toLocaleTimeString()}
+              </p>
+            </div>
+          </div>
 
           {/* Time Range Selector and Navigation */}
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
