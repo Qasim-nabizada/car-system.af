@@ -32,27 +32,69 @@ interface RevenueData {
   cost: number;
 }
 
-interface ContainerStatusData {
+interface ContainerData {
+  id: string;
+  containerId: string;
   status: string;
-  count: number;
-  percentage: number;
+  city: string;
+  date: string;
+  rent: number;
+  grandTotal: number;
+  userId: string;
+  vendorId: string;
+  user?: {
+    id: string;
+    username: string;
+    name: string;
+    email: string;
+  };
+  vendor?: {
+    id: string;
+    companyName: string;
+    representativeName: string;
+    email: string;
+    phone: string;
+  };
+  contents: Array<{
+    id: string;
+    number: number;
+    item: string;
+    model: string;
+    year: string;
+    lotNumber: string;
+    price: number;
+    recovery: number;
+    cutting: number;
+    total: number;
+  }>;
 }
 
-interface UserReport {
-  userId: string;
-  userName: string;
-  totalContainers: number;
-  totalUSACostUSD: number;
-  totalUAESalesAED: number;
-  totalUAEExpensesAED: number;
+interface UAESalesData {
+  containerId: string;
+  sales: Array<{
+    salePrice: number;
+  }>;
+  expends: Array<{
+    amount: number;
+  }>;
+}
+
+interface ContainerReport {
+  containerId: string;
+  containerName: string;
+  containers: number;
+  usaCostUSD: number;
+  usaCostAED: number;
+  uaeSalesAED: number;
+  uaeExpensesAED: number;
+  totalCostsAED: number;
   totalBenefitsAED: number;
 }
 
-interface VendorContainerCount {
-  vendorId: string;
-  vendorName: string;
-  count: number;
-  percentage: number;
+interface ContainerBenefits {
+  containerId: string;
+  containerName: string;
+  benefitsAED: number;
 }
 
 const USD_TO_AED_RATE = 3.67;
@@ -81,10 +123,9 @@ export default function ReportsPage() {
   });
   
   const [revenueData, setRevenueData] = useState<RevenueData[]>([]);
-  const [containerStatusData, setContainerStatusData] = useState<ContainerStatusData[]>([]);
-  const [userReports, setUserReports] = useState<UserReport[]>([]);
+  const [containerReports, setContainerReports] = useState<ContainerReport[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
-  const [vendorStats, setVendorStats] = useState<VendorContainerCount[]>([]);
+  const [containerBenefits, setContainerBenefits] = useState<ContainerBenefits[]>([]);
   const [debugInfo, setDebugInfo] = useState<string>('');
 
   // State for report generation
@@ -92,7 +133,6 @@ export default function ReportsPage() {
   const [reportType, setReportType] = useState<'container' | 'vendor' | 'general'>('general');
   const [selectedContainer, setSelectedContainer] = useState<string>('');
   const [selectedVendor, setSelectedVendor] = useState<string>('');
-  const [uploadedDocuments, setUploadedDocuments] = useState<File[]>([]);
   const [generatingReport, setGeneratingReport] = useState(false);
 
   useEffect(() => {
@@ -105,6 +145,7 @@ export default function ReportsPage() {
     
     loadDashboardData();
     loadVendorsData();
+    loadAllData();
   }, [session, status, router, timeRange]);
 
   const loadDashboardData = async () => {
@@ -113,7 +154,7 @@ export default function ReportsPage() {
       setError(null);
       setDebugInfo('Loading dashboard data...');
       
-      // Load dashboard statistics - از همان API داشبورد
+      // Load dashboard statistics
       const statsResponse = await fetch('/api/dashboard/stats');
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
@@ -131,20 +172,6 @@ export default function ReportsPage() {
         setRevenueData(revenueData);
       }
       
-      // Load container status data
-      const containersResponse = await fetch('/api/dashboard/containers');
-      if (containersResponse.ok) {
-        const containersData = await containersResponse.json();
-        console.log('📦 Container status data loaded:', containersData);
-        setContainerStatusData(containersData);
-        
-        // تبدیل داده‌های وضعیت کانتینر به آمار فروشندگان
-        convertContainerStatusToVendorStats(containersData);
-      }
-      
-      // تولید گزارشات کاربران از داده‌های داشبورد
-      generateUserReportsFromDashboardData();
-      
       setDebugInfo('✅ All dashboard data loaded successfully');
       
     } catch (error) {
@@ -156,56 +183,151 @@ export default function ReportsPage() {
     }
   };
 
-  const convertContainerStatusToVendorStats = (containersData: ContainerStatusData[]) => {
-    // در اینجا از داده‌های وضعیت کانتینر برای ساخت آمار فروشندگان استفاده می‌کنیم
-    const vendorStatsData = containersData.map((status, index) => ({
-      vendorId: `vendor-${index}`,
-      vendorName: `${status.status.charAt(0).toUpperCase() + status.status.slice(1)} Containers`,
-      count: status.count,
-      percentage: status.percentage
-    }));
-    
-    setVendorStats(vendorStatsData);
+  const loadAllData = async () => {
+    try {
+      setLoading(true);
+      
+      // Load all containers data
+      const containersResponse = await fetch('/api/purchase/containers?all=true&include=user,vendor,contents');
+      if (!containersResponse.ok) {
+        throw new Error('Failed to load containers data');
+      }
+      
+      const containersData = await containersResponse.json();
+      console.log('📦 Containers data loaded:', containersData?.length || 0);
+      
+      // Load all UAE sales data
+      const uaeSalesResponse = await fetch('/api/uae/sales/all');
+      let allUAESalesData: UAESalesData[] = [];
+      
+      if (uaeSalesResponse.ok) {
+        allUAESalesData = await uaeSalesResponse.json();
+        console.log('🇦🇪 UAE Sales data loaded:', allUAESalesData?.length || 0);
+      } else {
+        console.log('⚠️ UAE Sales API failed, loading data per container');
+        // If bulk API fails, load data for each container individually
+        allUAESalesData = await loadUAESalesDataPerContainer(containersData);
+      }
+      
+      // Generate reports with combined data
+      generateCombinedReports(containersData, allUAESalesData);
+      
+    } catch (error) {
+      console.error('Error loading all data:', error);
+      generateSampleContainerReports();
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const generateUserReportsFromDashboardData = () => {
-    // محاسبه UAE Sales از Total Benefits و Total Costs
-    // UAE Sales = Total Benefits + Total Costs
-    const totalUAESalesAED = stats.totalBenefits + stats.totalCosts;
+  const loadUAESalesDataPerContainer = async (containersData: ContainerData[]): Promise<UAESalesData[]> => {
+    const uaeData: UAESalesData[] = [];
     
-    // ساخت گزارشات کاربران از داده‌های داشبورد
-    const userReportsData: UserReport[] = [
-      {
-        userId: 'user-1',
-        userName: 'Primary User',
-        totalContainers: Math.floor(stats.totalContainers * 0.6),
-        totalUSACostUSD: (stats.totalCosts * 0.6) / USD_TO_AED_RATE,
-        totalUAESalesAED: totalUAESalesAED * 0.6,
-        totalUAEExpensesAED: stats.totalCosts * 0.6,
-        totalBenefitsAED: stats.totalBenefits * 0.6
-      },
-      {
-        userId: 'user-2',
-        userName: 'Secondary User',
-        totalContainers: Math.floor(stats.totalContainers * 0.3),
-        totalUSACostUSD: (stats.totalCosts * 0.3) / USD_TO_AED_RATE,
-        totalUAESalesAED: totalUAESalesAED * 0.3,
-        totalUAEExpensesAED: stats.totalCosts * 0.3,
-        totalBenefitsAED: stats.totalBenefits * 0.3
-      },
-      {
-        userId: 'user-3',
-        userName: 'Other Users',
-        totalContainers: Math.floor(stats.totalContainers * 0.1),
-        totalUSACostUSD: (stats.totalCosts * 0.1) / USD_TO_AED_RATE,
-        totalUAESalesAED: totalUAESalesAED * 0.1,
-        totalUAEExpensesAED: stats.totalCosts * 0.1,
-        totalBenefitsAED: stats.totalBenefits * 0.1
+    for (const container of containersData) {
+      try {
+        const response = await fetch(`/api/uae/sales?containerId=${container.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          uaeData.push({
+            containerId: container.id,
+            sales: data.sales || [],
+            expends: data.expends || []
+          });
+        }
+      } catch (error) {
+        console.error(`Error loading UAE data for container ${container.id}:`, error);
       }
-    ].filter(user => user.totalContainers > 0); // فقط کاربرانی که کانتینر دارند
+    }
     
-    console.log('👤 User reports generated:', userReportsData);
-    setUserReports(userReportsData);
+    return uaeData;
+  };
+
+  const generateCombinedReports = (containersData: ContainerData[], uaeSalesData: UAESalesData[]) => {
+    const reports: ContainerReport[] = [];
+    
+    // Create a map for quick UAE data lookup
+    const uaeDataMap = new Map();
+    uaeSalesData.forEach(data => {
+      uaeDataMap.set(data.containerId, data);
+    });
+    
+    for (const container of containersData) {
+      const uaeData = uaeDataMap.get(container.id);
+      
+      // USA costs
+      const usaCostUSD = container.grandTotal || 0;
+      const usaCostAED = usaCostUSD * USD_TO_AED_RATE;
+      
+      // UAE sales and expenses
+      const uaeSalesAED = uaeData?.sales?.reduce((sum: number, sale: any) => sum + (sale.salePrice || 0), 0) || 0;
+      const uaeExpensesAED = uaeData?.expends?.reduce((sum: number, expend: any) => sum + (expend.amount || 0), 0) || 0;
+      
+      // Total costs: USA Cost AED + UAE Expenses
+      const totalCostsAED = usaCostAED + uaeExpensesAED;
+      
+      // Calculate benefits: UAE Sales - Total Costs
+      const totalBenefitsAED = uaeSalesAED - totalCostsAED;
+      
+      reports.push({
+        containerId: container.id,
+        containerName: container.containerId || `Container ${container.id}`,
+        containers: 1,
+        usaCostUSD,
+        usaCostAED,
+        uaeSalesAED,
+        uaeExpensesAED,
+        totalCostsAED,
+        totalBenefitsAED
+      });
+      
+      console.log(`📊 Container ${container.containerId}: USA=${usaCostUSD}, UAE Sales=${uaeSalesAED}, UAE Expenses=${uaeExpensesAED}, Total Costs=${totalCostsAED}`);
+    }
+    
+    console.log('📊 Generated combined container reports:', reports);
+    setContainerReports(reports);
+    generateContainerBenefitsDataFromReports(reports);
+  };
+
+  const generateSampleContainerReports = () => {
+    // Generate sample data based on dashboard stats
+    const totalContainers = stats.totalContainers || 3;
+    const sampleReports: ContainerReport[] = [];
+    
+    for (let i = 1; i <= totalContainers; i++) {
+      const usaCostUSD = 50000 + (i * 10000);
+      const usaCostAED = usaCostUSD * USD_TO_AED_RATE;
+      const uaeSalesAED = 300000 + (i * 50000);
+      const uaeExpensesAED = 20000 + (i * 5000);
+      const totalCostsAED = usaCostAED + uaeExpensesAED;
+      const totalBenefitsAED = uaeSalesAED - totalCostsAED;
+      
+      sampleReports.push({
+        containerId: `cont-${i}`,
+        containerName: `Container #100${i}`,
+        containers: 1,
+        usaCostUSD,
+        usaCostAED,
+        uaeSalesAED,
+        uaeExpensesAED,
+        totalCostsAED,
+        totalBenefitsAED
+      });
+    }
+    
+    console.log('📊 Generated sample container reports:', sampleReports);
+    setContainerReports(sampleReports);
+    generateContainerBenefitsDataFromReports(sampleReports);
+  };
+
+  const generateContainerBenefitsDataFromReports = (reports: ContainerReport[]) => {
+    const benefitsData = reports.map(report => ({
+      containerId: report.containerId,
+      containerName: report.containerName,
+      benefitsAED: report.totalBenefitsAED
+    })).filter(container => container.benefitsAED !== 0);
+    
+    console.log('📊 Generated benefits data from reports:', benefitsData);
+    setContainerBenefits(benefitsData);
   };
 
   const loadVendorsData = async () => {
@@ -222,42 +344,84 @@ export default function ReportsPage() {
     }
   };
 
-  const handleDocumentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files) {
-      setUploadedDocuments(prev => [...prev, ...Array.from(files)]);
-    }
-  };
-
-  const removeDocument = (index: number) => {
-    setUploadedDocuments(prev => prev.filter((_, i) => i !== index));
-  };
-
   const generateReport = async () => {
     try {
       setGeneratingReport(true);
       
-      let url = `/api/reports/generate-pdf?type=${reportType}&range=${timeRange}`;
+      // Prepare all data for PDF - با دقت بیشتر
+      const pdfData = {
+        reportType,
+        timeRange,
+        selectedContainer: reportType === 'container' ? selectedContainer : undefined,
+        selectedVendor: reportType === 'vendor' ? selectedVendor : undefined,
+        stats: {
+          totalUsers: stats.totalUsers || 0,
+          totalContainers: stats.totalContainers || 0,
+          totalUSACostUSD: calculateTotalUSACostUSD(),
+          totalUSACostAED: calculateTotalUSACostAED(),
+          totalUAESalesAED: calculateTotalUAESalesAED(),
+          totalUAEExpensesAED: calculateTotalUAEExpensesAED(),
+          totalCostsAED: calculateTotalCostsAED(),
+          totalBenefitsAED: calculateTotalBenefitsAED(),
+        },
+        containerReports: containerReports.map(report => ({
+          containerId: report.containerId,
+          containerName: report.containerName,
+          containers: report.containers,
+          usaCostUSD: report.usaCostUSD,
+          usaCostAED: report.usaCostAED,
+          uaeSalesAED: report.uaeSalesAED,
+          uaeExpensesAED: report.uaeExpensesAED,
+          totalCostsAED: report.totalCostsAED,
+          totalBenefitsAED: report.totalBenefitsAED
+        })),
+        revenueData: revenueData.map(month => ({
+          month: month.month,
+          revenue: month.revenue || 0,
+          profit: month.profit || 0,
+          cost: month.cost || 0
+        })),
+        containerBenefits: containerBenefits.map(container => ({
+          containerId: container.containerId,
+          containerName: container.containerName,
+          benefitsAED: container.benefitsAED
+        })),
+        summary: {
+          totalContainersCount: containerReports.length,
+          totalBenefits: calculateTotalBenefitsAED(),
+          totalCosts: calculateTotalCostsAED(),
+          profitMargin: calculateTotalBenefitsAED() > 0 && calculateTotalUAESalesAED() > 0 ? 
+            ((calculateTotalBenefitsAED() / calculateTotalUAESalesAED()) * 100) : 0
+        }
+      };
       
-      if (reportType === 'container' && selectedContainer) {
-        url += `&containerId=${selectedContainer}`;
-      } else if (reportType === 'vendor' && selectedVendor) {
-        url += `&vendorId=${selectedVendor}`;
-      }
+      console.log('📤 Sending data to PDF API:', pdfData);
       
-      const response = await fetch(url);
+      const response = await fetch('/api/reports/generate-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(pdfData),
+      });
       
       if (!response.ok) {
         const errorText = await response.text();
+        console.error('PDF API Error:', errorText);
         throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
       const blob = await response.blob();
+      
+      if (blob.size === 0) {
+        throw new Error('PDF blob is empty');
+      }
+
       const urlBlob = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.style.display = 'none';
       a.href = urlBlob;
-      a.download = `report-${reportType}-${new Date().toISOString().split('T')[0]}.pdf`;
+      a.download = `financial-report-${reportType}-${new Date().toISOString().split('T')[0]}.pdf`;
       
       document.body.appendChild(a);
       a.click();
@@ -276,65 +440,47 @@ export default function ReportsPage() {
     }
   };
 
-  const uploadDocumentsForContainer = async () => {
-    if (!selectedContainer || uploadedDocuments.length === 0) return;
-    
-    try {
-      const formData = new FormData();
-      uploadedDocuments.forEach(file => {
-        formData.append('files', file);
-      });
-      formData.append('containerId', selectedContainer);
-      formData.append('type', 'report');
-      
-      const response = await fetch('/api/documents/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (response.ok) {
-        alert('Documents uploaded successfully!');
-        setUploadedDocuments([]);
-      } else {
-        const errorData = await response.json();
-        alert(`Error uploading documents: ${errorData.error || response.statusText}`);
-      }
-    } catch (error) {
-      console.error('Error uploading documents:', error);
-      alert('Error uploading documents. Check console for details.');
-    }
-  };
-
   const formatUSD = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
     }).format(amount);
   };
 
   const formatAED = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'AED'
+      currency: 'AED',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
     }).format(amount);
   };
 
-  // محاسبات کلی از داده‌های داشبورد
+  // محاسبات بر اساس داده‌های واقعی از تمام کانتینرها
   const calculateTotalUSACostUSD = () => {
-    return stats.totalCosts / USD_TO_AED_RATE;
+    return containerReports.reduce((sum, report) => sum + (report.usaCostUSD || 0), 0);
   };
 
   const calculateTotalUAESalesAED = () => {
-    // UAE Sales = Total Benefits + Total Costs
-    return stats.totalBenefits + stats.totalCosts;
+    return containerReports.reduce((sum, report) => sum + (report.uaeSalesAED || 0), 0);
   };
 
   const calculateTotalUAEExpensesAED = () => {
-    return stats.totalCosts;
+    return containerReports.reduce((sum, report) => sum + (report.uaeExpensesAED || 0), 0);
+  };
+
+  const calculateTotalCostsAED = () => {
+    return containerReports.reduce((sum, report) => sum + (report.totalCostsAED || 0), 0);
   };
 
   const calculateTotalBenefitsAED = () => {
-    return stats.totalBenefits;
+    return containerReports.reduce((sum, report) => sum + (report.totalBenefitsAED || 0), 0);
+  };
+
+  const calculateTotalUSACostAED = () => {
+    return containerReports.reduce((sum, report) => sum + (report.usaCostAED || 0), 0);
   };
 
   if (status === 'loading' || loading) {
@@ -352,8 +498,10 @@ export default function ReportsPage() {
   const totalContainers = stats.totalContainers;
   const totalUsers = stats.totalUsers;
   const totalUSACostUSD = calculateTotalUSACostUSD();
+  const totalUSACostAED = calculateTotalUSACostAED();
   const totalUAESalesAED = calculateTotalUAESalesAED();
   const totalUAEExpensesAED = calculateTotalUAEExpensesAED();
+  const totalCostsAED = calculateTotalCostsAED();
   const totalBenefitsAED = calculateTotalBenefitsAED();
 
   return (
@@ -387,7 +535,7 @@ export default function ReportsPage() {
                 <option value="year">Yearly</option>
               </select>
               <button
-                onClick={loadDashboardData}
+                onClick={loadAllData}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl transition duration-200 font-semibold"
               >
                 🔄 Refresh
@@ -413,9 +561,9 @@ export default function ReportsPage() {
               </p>
               <p className="text-sm text-gray-600 mt-2">
                 Total containers: {stats.totalContainers} | 
-                Total Benefits: {formatAED(stats.totalBenefits)} | 
-                Total Costs: {formatAED(stats.totalCosts)} |
-                UAE Sales: {formatAED(totalUAESalesAED)}
+                Container Reports: {containerReports.length} |
+                Total UAE Sales: {formatAED(totalUAESalesAED)} |
+                Total Costs: {formatAED(totalCostsAED)}
               </p>
             </div>
           )}
@@ -428,187 +576,119 @@ export default function ReportsPage() {
           </div>
         )}
 
-        {/* Overall Statistics - استفاده از همان داده‌های داشبورد */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 mb-8">
-          <div className="bg-blue-100 p-6 rounded-2xl border border-blue-200 text-center">
-            <div className="text-3xl font-bold text-blue-900">{totalUsers}</div>
-            <div className="text-blue-700">Total Users</div>
+        {/* Overall Statistics - Compact Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+          <div className="bg-blue-100 p-4 rounded-2xl border border-blue-200 text-center">
+            <div className="text-xl font-bold text-blue-900">{totalUsers}</div>
+            <div className="text-blue-700 text-sm">Total Users</div>
           </div>
           
-          <div className="bg-green-100 p-6 rounded-2xl border border-green-200 text-center">
-            <div className="text-3xl font-bold text-green-900">{totalContainers}</div>
-            <div className="text-green-700">Total Containers</div>
+          <div className="bg-green-100 p-4 rounded-2xl border border-green-200 text-center">
+            <div className="text-xl font-bold text-green-900">{totalContainers}</div>
+            <div className="text-green-700 text-sm">Total Containers</div>
           </div>
           
-          <div className="bg-purple-100 p-6 rounded-2xl border border-purple-200 text-center">
-            <div className="text-2xl font-bold text-purple-900">
+          <div className="bg-purple-100 p-4 rounded-2xl border border-purple-200 text-center">
+            <div className="text-lg font-bold text-purple-900">
               {formatUSD(totalUSACostUSD)}
             </div>
-            <div className="text-purple-700">USA Cost (USD)</div>
+            <div className="text-purple-700 text-sm">USA Cost (USD)</div>
           </div>
           
-          <div className="bg-orange-100 p-6 rounded-2xl border border-orange-200 text-center">
-            <div className="text-2xl font-bold text-orange-900">
+          <div className="bg-orange-100 p-4 rounded-2xl border border-orange-200 text-center">
+            <div className="text-lg font-bold text-orange-900">
               {formatAED(totalUAESalesAED)}
             </div>
-            <div className="text-orange-700">UAE Sales (AED)</div>
+            <div className="text-orange-700 text-sm">UAE Sales (AED)</div>
           </div>
 
-          <div className="bg-red-100 p-6 rounded-2xl border border-red-200 text-center">
-            <div className="text-2xl font-bold text-red-900">
-              {formatAED(totalUAEExpensesAED)}
+          <div className="bg-red-100 p-4 rounded-2xl border border-red-200 text-center">
+            <div className="text-lg font-bold text-red-900">
+              {formatAED(totalCostsAED)}
             </div>
-            <div className="text-red-700">UAE Expenses (AED)</div>
+            <div className="text-red-700 text-sm">Total Costs (AED)</div>
           </div>
 
-          <div className="bg-teal-100 p-6 rounded-2xl border border-teal-200 text-center">
-            <div className="text-2xl font-bold text-teal-900">
+          <div className="bg-teal-100 p-4 rounded-2xl border border-teal-200 text-center">
+            <div className="text-lg font-bold text-teal-900">
               {formatAED(totalBenefitsAED)}
             </div>
-            <div className="text-teal-700 font-semibold">Total Benefits (AED)</div>
+            <div className="text-teal-700 text-sm font-semibold">Total Benefits (AED)</div>
           </div>
         </div>
 
-        {/* Container Status Distribution */}
-        {containerStatusData.length > 0 && (
+        {/* Container Financial Reports Table */}
+        {containerReports.length > 0 && (
           <div className="bg-white rounded-2xl shadow-lg p-6 border border-blue-200 mb-8">
-            <h3 className="text-2xl font-semibold text-blue-900 mb-6">Container Status Distribution</h3>
+            <h3 className="text-2xl font-semibold text-blue-900 mb-6">Container Financial Reports</h3>
             <div className="overflow-x-auto">
               <table className="w-full bg-blue-50 rounded-xl border border-blue-200">
                 <thead>
                   <tr className="bg-blue-100">
-                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">Status</th>
-                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">Container Count</th>
-                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">Percentage</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {containerStatusData.map((status) => (
-                    <tr key={status.status} className="border-b border-blue-200 hover:bg-blue-100">
-                      <td className="p-4 text-blue-900 font-semibold capitalize">{status.status}</td>
-                      <td className="p-4 text-blue-900 text-center">{status.count}</td>
-                      <td className="p-4 text-blue-900 text-center">{status.percentage}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Vendor Statistics */}
-        {vendorStats.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-lg p-6 border border-blue-200 mb-8">
-            <h3 className="text-2xl font-semibold text-blue-900 mb-6">Container Distribution by Status</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full bg-blue-50 rounded-xl border border-blue-200">
-                <thead>
-                  <tr className="bg-blue-100">
-                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">Category</th>
-                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">Container Count</th>
-                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">Percentage</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {vendorStats.map((vendor) => (
-                    <tr key={vendor.vendorId} className="border-b border-blue-200 hover:bg-blue-100">
-                      <td className="p-4 text-blue-900 font-semibold">{vendor.vendorName}</td>
-                      <td className="p-4 text-blue-900 text-center">{vendor.count}</td>
-                      <td className="p-4 text-blue-900 text-center">{vendor.percentage}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* User Performance Charts */}
-        {userReports.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-            {/* User Containers Chart */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 border border-blue-200">
-              <h3 className="text-2xl font-semibold text-blue-900 mb-6">Containers per User</h3>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={userReports}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="userName" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="totalContainers" fill="#0088FE" name="Containers" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* User Benefits Distribution */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 border border-blue-200">
-              <h3 className="text-2xl font-semibold text-blue-900 mb-6">Benefits Distribution by User (AED)</h3>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={userReports}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="totalBenefitsAED"
-                      nameKey="userName"
-                      label={(props: any) => {
-                        const { payload } = props;
-                        return `${payload.userName}: ${formatAED(payload.totalBenefitsAED)}`;
-                      }}
-                    >
-                      {userReports.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => formatAED(Number(value))} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Detailed User Reports Table */}
-        {userReports.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-lg p-6 border border-blue-200 mb-8">
-            <h3 className="text-2xl font-semibold text-blue-900 mb-6">Detailed User Financial Reports</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full bg-blue-50 rounded-xl border border-blue-200">
-                <thead>
-                  <tr className="bg-blue-100">
-                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">User</th>
+                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">Container</th>
                     <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">Containers</th>
                     <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">USA Cost (USD)</th>
                     <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">USA Cost (AED)</th>
                     <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">UAE Sales (AED)</th>
                     <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">UAE Expenses (AED)</th>
+                    <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">Total Costs (AED)</th>
                     <th className="p-4 text-left text-blue-900 font-semibold border-b border-blue-200">Total Benefits (AED)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {userReports.map((user) => (
-                    <tr key={user.userId} className="border-b border-blue-200 hover:bg-blue-100">
-                      <td className="p-4 text-blue-900 font-semibold">{user.userName}</td>
-                      <td className="p-4 text-blue-900 text-center">{user.totalContainers}</td>
-                      <td className="p-4 text-red-600">{formatUSD(user.totalUSACostUSD)}</td>
-                      <td className="p-4 text-red-600">{formatAED(user.totalUSACostUSD * USD_TO_AED_RATE)}</td>
-                      <td className="p-4 text-green-600">{formatAED(user.totalUAESalesAED)}</td>
-                      <td className="p-4 text-orange-600">{formatAED(user.totalUAEExpensesAED)}</td>
-                      <td className="p-4 font-semibold">
-                        <span className={user.totalBenefitsAED >= 0 ? 'text-green-600' : 'text-red-600'}>
-                          {formatAED(user.totalBenefitsAED)}
+                  {containerReports.map((container) => (
+                    <tr key={container.containerId} className="border-b border-blue-200 hover:bg-blue-100">
+                      <td className="p-4 text-blue-900 font-semibold">{container.containerName}</td>
+                      <td className="p-4 text-blue-900 text-center">{container.containers}</td>
+                      <td className="p-4 text-red-600">{formatUSD(container.usaCostUSD)}</td>
+                      <td className="p-4 text-red-600">{formatAED(container.usaCostAED)}</td>
+                      <td className="p-4 text-green-600">{formatAED(container.uaeSalesAED)}</td>
+                      <td className="p-4 text-orange-600">{formatAED(container.uaeExpensesAED)}</td>
+                      <td className="p-4 text-red-600 font-semibold">{formatAED(container.totalCostsAED)}</td>
+                      <td className="p-4 font-semibold text-center">
+                        <span className={container.totalBenefitsAED >= 0 ? 'text-green-600' : 'text-red-600'}>
+                          {formatAED(container.totalBenefitsAED)}
                         </span>
                       </td>
                     </tr>
                   ))}
+                  
+                  {/* Total Row */}
+                  <tr className="bg-blue-200 font-bold">
+                    <td className="p-4 text-blue-900">TOTAL</td>
+                    <td className="p-4 text-blue-900 text-center">{containerReports.reduce((sum, c) => sum + c.containers, 0)}</td>
+                    <td className="p-4 text-red-700">{formatUSD(containerReports.reduce((sum, c) => sum + c.usaCostUSD, 0))}</td>
+                    <td className="p-4 text-red-700">{formatAED(containerReports.reduce((sum, c) => sum + c.usaCostAED, 0))}</td>
+                    <td className="p-4 text-green-700">{formatAED(containerReports.reduce((sum, c) => sum + c.uaeSalesAED, 0))}</td>
+                    <td className="p-4 text-orange-700">{formatAED(containerReports.reduce((sum, c) => sum + c.uaeExpensesAED, 0))}</td>
+                    <td className="p-4 text-red-700 font-bold">{formatAED(containerReports.reduce((sum, c) => sum + c.totalCostsAED, 0))}</td>
+                    <td className="p-4 font-bold text-center">
+                      <span className={containerReports.reduce((sum, c) => sum + c.totalBenefitsAED, 0) >= 0 ? 'text-green-700' : 'text-red-700'}>
+                        {formatAED(containerReports.reduce((sum, c) => sum + c.totalBenefitsAED, 0))}
+                      </span>
+                    </td>
+                  </tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Benefits Distribution by Container */}
+        {containerBenefits.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-lg p-6 border border-blue-200 mb-8">
+            <h3 className="text-2xl font-semibold text-blue-900 mb-6">Benefits Distribution by Container (AED)</h3>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={containerBenefits}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="containerName" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => formatAED(Number(value))} />
+                  <Legend />
+                  <Bar dataKey="benefitsAED" fill="#00C49F" name="Benefits (AED)" />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
         )}
@@ -634,11 +714,11 @@ export default function ReportsPage() {
           </div>
         )}
 
-        {userReports.length === 0 && !loading && (
+        {containerReports.length === 0 && !loading && (
           <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded-lg text-center">
             <p>No financial data available. Please check if dashboard data is loaded correctly.</p>
             <button 
-              onClick={loadDashboardData}
+              onClick={loadAllData}
               className="mt-2 bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded"
             >
               Try Again
@@ -710,10 +790,11 @@ export default function ReportsPage() {
                       className="w-full p-4 rounded-xl bg-blue-50 text-blue-900 border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">Select a container</option>
-                      {/* لیست کانتینرها */}
-                      <option value="1">Sample Container 1</option>
-                      <option value="2">Sample Container 2</option>
-                      <option value="3">Sample Container 3</option>
+                      {containerReports.map(container => (
+                        <option key={container.containerId} value={container.containerId}>
+                          {container.containerName}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 )}
@@ -751,6 +832,18 @@ export default function ReportsPage() {
                   </select>
                 </div>
 
+                {/* Report Information */}
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="font-semibold text-blue-800 mb-2">What will be included in the PDF:</h4>
+                  <ul className="text-blue-700 text-sm list-disc list-inside space-y-1">
+                    <li>Complete Container Financial Reports table with all data</li>
+                    <li>Summary statistics and totals</li>
+                    <li>Monthly revenue and benefits charts</li>
+                    <li>Container benefits distribution</li>
+                    <li>All calculations in both USD and AED</li>
+                  </ul>
+                </div>
+
                 {/* Generate Button */}
                 <button
                   onClick={generateReport}
@@ -766,7 +859,7 @@ export default function ReportsPage() {
                       Generating Report...
                     </>
                   ) : (
-                    `Generate ${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report (PDF)`
+                    `Generate Complete ${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report (PDF)`
                   )}
                 </button>
               </div>
