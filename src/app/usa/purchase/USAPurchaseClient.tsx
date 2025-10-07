@@ -2305,7 +2305,7 @@ const renderContentItems = () => {
                 </div>
 
                 <div className="overflow-x-auto">
-               // در بخش جدول My Transfers Modal
+        
 <table className="w-full bg-green-700 rounded-lg border border-green-600">
   <thead>
     <tr className="bg-green-600">
