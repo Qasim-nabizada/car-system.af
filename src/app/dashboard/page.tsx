@@ -1,6 +1,6 @@
 // app/dashboard/page.tsx
 'use client';
-
+export const dynamic = 'force-static'
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';

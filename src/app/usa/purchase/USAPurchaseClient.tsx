@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+export const dynamic = 'force-static'
 
 interface Vendor {
   id: string;
