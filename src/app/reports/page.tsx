@@ -174,7 +174,7 @@ export default function ReportsPage() {
         setRevenueData(revenueData);
       }
       
-      setDebugInfo('✅ All dashboard data loaded successfully');
+      setDebugInfo('✅ All  data loaded successfully');
       
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -559,7 +559,7 @@ export default function ReportsPage() {
           {debugInfo && (
             <div className="bg-gray-100 p-4 rounded-lg mt-4">
               <p className="text-sm text-gray-700">
-                <strong>Debug Info:</strong> {debugInfo}
+          
               </p>
               <p className="text-sm text-gray-600 mt-2">
                 Total containers: {stats.totalContainers} | 
