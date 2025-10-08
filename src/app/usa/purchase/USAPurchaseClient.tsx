@@ -879,7 +879,12 @@ const viewMyTransfers = async () => {
     
     console.log('🔄 Fetching transfers for user:', session?.user?.id);
     
-    const response = await fetch('/api/transfers/my-transfers');
+    // تغییر endpoint به /api/transfers برای مدیران
+    const endpoint = session?.user?.role === 'manager' 
+      ? '/api/transfers' 
+      : '/api/transfers/my-transfers';
+    
+    const response = await fetch(endpoint);
     
     console.log('📊 Response status:', response.status);
     
@@ -899,7 +904,8 @@ const viewMyTransfers = async () => {
           senderName: transfer.sender?.name,
           receiverId: transfer.receiverId,
           receiverName: transfer.receiver?.name,
-          amount: transfer.amount
+          amount: transfer.amount,
+          description: transfer.description // اضافه کردن description
         });
       });
       
@@ -915,9 +921,12 @@ const viewMyTransfers = async () => {
     setTransfersLoading(false);
   }
 };
-  const printTransfer = (transfer: Transfer) => {
+const printTransfer = (transfer: Transfer) => {
   const printWindow = window.open('', '_blank');
   if (!printWindow) return;
+
+  // استخراج نام فرستنده واقعی از description
+  const senderName = transfer.description?.split('|')[0]?.replace('Sender:', '').trim() || transfer.sender?.name;
 
   const printContent = `
     <!DOCTYPE html>
@@ -948,14 +957,13 @@ const viewMyTransfers = async () => {
       <div class="info-grid">
         <div>
           <div class="info-item"><span class="label">Transfer Date:</span> ${transfer.date}</div>
-          <div class="info-item"><span class="label">Sender:</span> ${transfer.sender?.name || 'N/A'}</div>
+          <div class="info-item"><span class="label">Sender:</span> ${senderName}</div>
           <div class="info-item"><span class="label">Container ID:</span> ${transfer.container.containerId}</div>
           <div class="info-item"><span class="label">Vendor:</span> ${transfer.vendor?.companyName || 'N/A'}</div>
         </div>
         <div>
           <div class="info-item"><span class="label">Amount:</span> $${transfer.amount.toLocaleString()}</div>
           <div class="info-item"><span class="label">Transfer Type:</span> ${transfer.type}</div>
-          <div class="info-item"><span class="label">Description:</span> ${transfer.description || 'N/A'}</div>
         </div>
       </div>
       
@@ -1267,6 +1275,292 @@ const viewMyTransfers = async () => {
       alert('Error testing API endpoints. Check console for details.');
     }
   };
+  const printAllTransfers = () => {
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert('Popup blocked! Please allow popups for this site.');
+    return;
+  }
+
+  const printContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>All Money Transfers Report</title>
+      <style>
+        @media print {
+          @page {
+            size: A4;
+            margin: 1cm;
+          }
+        }
+        body { 
+          font-family: 'Arial', sans-serif; 
+          margin: 0;
+          padding: 20px;
+          line-height: 1.4;
+          color: #333;
+        }
+        .header { 
+          text-align: center; 
+          margin-bottom: 30px; 
+          border-bottom: 3px solid #333; 
+          padding-bottom: 20px; 
+        }
+        .company-name {
+          font-size: 24px;
+          font-weight: bold;
+          color: #2d3748;
+          margin-bottom: 10px;
+        }
+        .report-title {
+          font-size: 20px;
+          color: #4a5568;
+          margin-bottom: 10px;
+        }
+        .report-info {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 20px;
+          font-size: 14px;
+          color: #718096;
+        }
+        .transfers-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 30px;
+          font-size: 12px;
+        }
+        .transfers-table th {
+          background-color: #2d3748;
+          color: white;
+          padding: 10px 8px;
+          text-align: left;
+          border: 1px solid #4a5568;
+          font-weight: bold;
+        }
+        .transfers-table td {
+          padding: 8px;
+          border: 1px solid #e2e8f0;
+          text-align: left;
+        }
+        .transfers-table tr:nth-child(even) {
+          background-color: #f7fafc;
+        }
+        .transfers-table tr:hover {
+          background-color: #edf2f7;
+        }
+        .summary {
+          margin-top: 30px;
+          padding: 20px;
+          background-color: #f8f9fa;
+          border-radius: 8px;
+          border: 2px solid #e2e8f0;
+        }
+        .summary h3 {
+          margin-top: 0;
+          color: #2d3748;
+          border-bottom: 2px solid #cbd5e0;
+          padding-bottom: 10px;
+        }
+        .summary-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 15px;
+          margin-top: 15px;
+        }
+        .summary-item {
+          text-align: center;
+          padding: 10px;
+        }
+        .summary-value {
+          font-size: 20px;
+          font-weight: bold;
+          color: #2b6cb0;
+        }
+        .summary-label {
+          font-size: 12px;
+          color: #718096;
+          margin-top: 5px;
+        }
+        .total-amount {
+          grid-column: span 3;
+          text-align: center;
+          padding: 15px;
+          background-color: #ebf8ff;
+          border-radius: 6px;
+          margin-top: 10px;
+        }
+        .total-value {
+          font-size: 24px;
+          font-weight: bold;
+          color: #2b6cb0;
+        }
+        .no-data {
+          text-align: center;
+          padding: 40px;
+          color: #718096;
+          font-style: italic;
+        }
+        .page-break {
+          page-break-before: always;
+        }
+        @media print {
+          .no-print { display: none; }
+          body { margin: 0; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div class="company-name">Al Raya Used Auto Spare Trading LLC</div>
+        <div class="report-title">Complete Money Transfers Report</div>
+        <div class="report-info">
+          <span>Generated on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</span>
+          <span>Total Transfers: ${userTransfers.length}</span>
+        </div>
+      </div>
+
+      ${userTransfers.length > 0 ? `
+        <table class="transfers-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Sender</th>
+              <th>Vendor</th>
+              <th>Container ID</th>
+              <th>Amount ($)</th>
+              <th>Type</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${userTransfers.map((transfer, index) => {
+              const senderName = transfer.description?.split('|')[0]?.replace('Sender:', '').trim() || transfer.sender?.name;
+              const descriptionOnly = transfer.description?.split('|')[1]?.trim() || '-';
+              
+              // ایجاد page break بعد از هر 20 ردیف
+              const pageBreak = index > 0 && index % 20 === 0 ? 'page-break' : '';
+              
+              return `
+                <tr class="${pageBreak}">
+                  <td>${transfer.date}</td>
+                  <td>${senderName}</td>
+                  <td>${transfer.vendor?.companyName || 'Unknown'}</td>
+                  <td>${transfer.container.containerId}</td>
+                  <td style="text-align: right; font-weight: bold;">$${transfer.amount.toLocaleString()}</td>
+                  <td>
+                    <span style="
+                      padding: 2px 6px;
+                      border-radius: 10px;
+                      font-size: 10px;
+                      background-color: ${
+                        transfer.type === 'Bank' ? '#bee3f8' : 
+                        transfer.type === 'Cash' ? '#c6f6d5' : 
+                        '#fed7d7'
+                      };
+                      color: ${
+                        transfer.type === 'Bank' ? '#2c5282' : 
+                        transfer.type === 'Cash' ? '#276749' : 
+                        '#9b2c2c'
+                      };
+                    ">
+                      ${transfer.type}
+                    </span>
+                  </td>
+                  <td>${descriptionOnly}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+
+        <div class="summary">
+          <h3>Report Summary</h3>
+          <div class="summary-grid">
+            <div class="summary-item">
+              <div class="summary-value">${userTransfers.length}</div>
+              <div class="summary-label">Total Transfers</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-value">${new Set(userTransfers.map(t => t.vendor?.id)).size}</div>
+              <div class="summary-label">Unique Vendors</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-value">${new Set(userTransfers.map(t => t.container.containerId)).size}</div>
+              <div class="summary-label">Containers</div>
+            </div>
+            <div class="total-amount">
+              <div class="summary-value">$${userTransfers.reduce((sum, t) => sum + t.amount, 0).toLocaleString()}</div>
+              <div class="summary-label">Grand Total Amount</div>
+            </div>
+          </div>
+          
+          <div style="margin-top: 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; font-size: 12px;">
+            <div>
+              <strong>Transfer Types:</strong><br>
+              Bank: ${userTransfers.filter(t => t.type === 'Bank').length}<br>
+              Cash: ${userTransfers.filter(t => t.type === 'Cash').length}<br>
+              Hand: ${userTransfers.filter(t => t.type === 'Hand').length}
+            </div>
+            <div>
+              <strong>Date Range:</strong><br>
+              From: ${userTransfers.length > 0 ? 
+                new Date(Math.min(...userTransfers.map(t => new Date(t.date).getTime()))).toLocaleDateString() : 'N/A'}<br>
+              To: ${userTransfers.length > 0 ? 
+                new Date(Math.max(...userTransfers.map(t => new Date(t.date).getTime()))).toLocaleDateString() : 'N/A'}
+            </div>
+            <div>
+              <strong>Average Transfer:</strong><br>
+              $${userTransfers.length > 0 ? 
+                (userTransfers.reduce((sum, t) => sum + t.amount, 0) / userTransfers.length).toLocaleString(undefined, { 
+                  maximumFractionDigits: 2 
+                }) : '0'}
+            </div>
+          </div>
+        </div>
+      ` : `
+        <div class="no-data">
+          <h3>No Transfers Found</h3>
+          <p>There are no money transfers to display in the report.</p>
+        </div>
+      `}
+
+      <div class="no-print" style="margin-top: 40px; text-align: center; padding: 20px;">
+        <button onclick="window.print()" style="
+          padding: 12px 24px; 
+          background: #007bff; 
+          color: white; 
+          border: none; 
+          border-radius: 5px; 
+          cursor: pointer;
+          font-size: 16px;
+          margin-right: 10px;
+        ">Print Report</button>
+        <button onclick="window.close()" style="
+          padding: 12px 24px; 
+          background: #6c757d; 
+          color: white; 
+          border: none; 
+          border-radius: 5px; 
+          cursor: pointer;
+          font-size: 16px;
+        ">Close Window</button>
+      </div>
+
+      <script>
+        window.onload = function() {
+          // اتوماتیک پرینت بگیرد اگر نیاز است
+          // window.print();
+        };
+      </script>
+    </body>
+    </html>
+  `;
+
+  printWindow.document.write(printContent);
+  printWindow.document.close();
+};
 
 const renderContentItems = () => {
   return currentContents.map((item, index) => (
@@ -2256,171 +2550,177 @@ const renderContentItems = () => {
         </div>
       )}
 
-      {/* My Transfers Modal */}
-      {showTransfersModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-green-800 p-6 rounded-xl shadow-2xl border border-green-700 max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-semibold text-center flex-1">
-                💰 My Money Transfers
-              </h3>
-              <button
-                onClick={() => setShowTransfersModal(false)}
-                className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg"
-              >
-                Close
-              </button>
-            </div>
+   {/* My Transfers Modal */}
+{showTransfersModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="bg-green-800 p-6 rounded-xl shadow-2xl border border-green-700 max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-2xl font-semibold text-center flex-1">
+          💰 My Money Transfers
+        </h3>
+        <div className="flex gap-2">
+          <button
+            onClick={printAllTransfers}
+            disabled={userTransfers.length === 0}
+            className="bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 text-white px-4 py-2 rounded-lg transition duration-200"
+          >
+            🖨️ Print All
+          </button>
+          <button
+            onClick={() => setShowTransfersModal(false)}
+            className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg transition duration-200"
+          >
+            Close
+          </button>
+        </div>
+      </div>
 
-            {transfersLoading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
-                <p className="mt-4 text-green-200">Loading transfers...</p>
+      {transfersLoading ? (
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
+          <p className="mt-4 text-green-200">Loading transfers...</p>
+        </div>
+      ) : userTransfers.length > 0 ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 p-4 bg-green-700 rounded-lg">
+            <div className="text-center">
+              <div className="text-2xl font-bold">{userTransfers.length}</div>
+              <div className="text-green-200">Total Transfers</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold">
+                ${userTransfers.reduce((sum, t) => sum + t.amount, 0).toLocaleString()}
               </div>
-            ) : userTransfers.length > 0 ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 p-4 bg-green-700 rounded-lg">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{userTransfers.length}</div>
-                    <div className="text-green-200">Total Transfers</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">
-                      ${userTransfers.reduce((sum, t) => sum + t.amount, 0).toLocaleString()}
-                    </div>
-                    <div className="text-green-200">Total Amount</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">
-                      {new Set(userTransfers.map(t => t.vendor?.id)).size}
-                    </div>
-                    <div className="text-green-200">Vendors</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">
-                      {userTransfers.filter(t => t.documents && t.documents.length > 0).length}
-                    </div>
-                    <div className="text-green-200">With Documents</div>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto">
-        
-<table className="w-full bg-green-700 rounded-lg border border-green-600">
-  <thead>
-    <tr className="bg-green-600">
-      <th className="p-3 text-left text-green-200 font-semibold">Date</th>
-      <th className="p-3 text-left text-green-200 font-semibold">Sender</th> {/* ستون جدید */}
-      <th className="p-3 text-left text-green-200 font-semibold">Vendor</th>
-      <th className="p-3 text-left text-green-200 font-semibold">Container</th>
-      <th className="p-3 text-left text-green-200 font-semibold">Amount</th>
-      <th className="p-3 text-left text-green-200 font-semibold">Type</th>
-      <th className="p-3 text-left text-green-200 font-semibold">Documents</th>
-      <th className="p-3 text-left text-green-200 font-semibold">Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-    {userTransfers.map((transfer) => (
-      <tr key={transfer.id} className="border-b border-green-600 hover:bg-green-700">
-        <td className="p-3 text-white">{transfer.date}</td>
-        
-        {/* ستون sender */}
-        <td className="p-3 text-white">
-          {transfer.sender ? (
-            <div>
-              <div className="font-semibold">{transfer.sender.name}</div>
-              <div className="text-sm text-green-300">@{transfer.sender.username}</div>
+              <div className="text-green-200">Total Amount</div>
             </div>
-          ) : (
-            <span className="text-gray-400">Unknown</span>
-          )}
-        </td>
-        
-        <td className="p-3 text-white font-semibold">
-          {transfer.vendor?.companyName || 'Unknown Vendor'}
-        </td>
-        <td className="p-3 text-white font-mono">{transfer.container.containerId}</td>
-        <td className="p-3 text-green-300 font-bold">
-          ${transfer.amount.toLocaleString()}
-        </td>
-        <td className="p-3">
-          <span className={`px-2 py-1 rounded-full text-xs ${
-            transfer.type === 'Bank' 
-              ? 'bg-blue-100 text-blue-800' 
-              : transfer.type === 'Cash'
-              ? 'bg-green-100 text-green-800'
-              : 'bg-orange-100 text-orange-800'
-          }`}>
-            {transfer.type}
-          </span>
-        </td>
-        <td className="p-3">
-          {transfer.documents && transfer.documents.length > 0 ? (
-            <div className="space-y-1">
-              {transfer.documents.map((doc: any) => {
-                const fileName = doc?.originalName || doc?.filename || 'Unnamed Document';
-                return (
-                  <a 
-                    key={doc.id}
-                    href={doc.path} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-blue-300 hover:text-blue-200 text-sm flex items-center"
-                    title={fileName}
-                  >
-                    📎 {fileName.length > 20 
-                      ? fileName.substring(0, 20) + '...' 
-                      : fileName}
-                  </a>
-                );
-              })}
+            <div className="text-center">
+              <div className="text-2xl font-bold">
+                {new Set(userTransfers.map(t => t.vendor?.id)).size}
+              </div>
+              <div className="text-green-200">Vendors</div>
             </div>
-          ) : (
-            <span className="text-gray-400 text-sm">No documents</span>
-          )}
-        </td>
-        <td className="p-3">
-          <div className="flex gap-2">
-            <button
-              onClick={() => printTransfer(transfer)}
-              className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm"
-            >
-              Print
-            </button>
-            <button
-              onClick={() => viewTransferDetails(transfer)}
-              className="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm"
-            >
-              Details
-            </button>
+            <div className="text-center">
+              <div className="text-2xl font-bold">
+                {userTransfers.filter(t => t.documents && t.documents.length > 0).length}
+              </div>
+              <div className="text-green-200">With Documents</div>
+            </div>
           </div>
-        </td>
-      </tr>
-    ))}
-  </tbody>
-</table>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-12 text-green-300">
-                <div className="text-6xl mb-4">💸</div>
-                <h4 className="text-xl font-semibold mb-2">No Transfers Found</h4>
-                <p>You haven't made any money transfers yet.</p>
-                <button
-                  onClick={() => {
-                    setShowTransfersModal(false);
-                    // رفتن به صفحه transfers
-                    window.open('/transfers', '_blank');
-                  }}
-                  className="bg-green-600 hover:bg-green-500 text-white px-6 py-2 rounded-lg mt-4"
-                >
-                  Go to Transfers Page
-                </button>
-              </div>
-            )}
+
+          <div className="overflow-x-auto">
+            <table className="w-full bg-green-700 rounded-lg border border-green-600">
+              <thead>
+                <tr className="bg-green-600">
+                  <th className="p-3 text-left text-green-200 font-semibold">Date</th>
+                  <th className="p-3 text-left text-green-200 font-semibold">Sender</th>
+                  <th className="p-3 text-left text-green-200 font-semibold">Vendor</th>
+                  <th className="p-3 text-left text-green-200 font-semibold">Container</th>
+                  <th className="p-3 text-left text-green-200 font-semibold">Amount</th>
+                  <th className="p-3 text-left text-green-200 font-semibold">Type</th>
+                  <th className="p-3 text-left text-green-200 font-semibold">Documents</th>
+                  <th className="p-3 text-left text-green-200 font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {userTransfers.map((transfer) => {
+                  // استخراج نام فرستنده واقعی از description (مثل صفحه transfers)
+                  const senderName = transfer.description?.split('|')[0]?.replace('Sender:', '').trim() || transfer.sender?.name;
+                  
+                  return (
+                    <tr key={transfer.id} className="border-b border-green-600 hover:bg-green-700">
+                      <td className="p-3 text-white">{transfer.date}</td>
+                      
+                      {/* ستون sender - فقط نام واقعی */}
+                      <td className="p-3 text-white">
+                        <div className="font-semibold">{senderName}</div>
+                      </td>
+                      
+                      <td className="p-3 text-white font-semibold">
+                        {transfer.vendor?.companyName || 'Unknown Vendor'}
+                      </td>
+                      <td className="p-3 text-white font-mono">{transfer.container.containerId}</td>
+                      <td className="p-3 text-green-300 font-bold">
+                        ${transfer.amount.toLocaleString()}
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2 py-1 rounded-full text-xs ${
+                          transfer.type === 'Bank' 
+                            ? 'bg-blue-100 text-blue-800' 
+                            : transfer.type === 'Cash'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-orange-100 text-orange-800'
+                        }`}>
+                          {transfer.type}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        {transfer.documents && transfer.documents.length > 0 ? (
+                          <div className="space-y-1">
+                            {transfer.documents.map((doc: any) => {
+                              const fileName = doc?.originalName || doc?.filename || 'Unnamed Document';
+                              return (
+                                <a 
+                                  key={doc.id}
+                                  href={doc.path} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-blue-300 hover:text-blue-200 text-sm flex items-center"
+                                  title={fileName}
+                                >
+                                  📎 {fileName.length > 20 
+                                    ? fileName.substring(0, 20) + '...' 
+                                    : fileName}
+                                </a>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">No documents</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => printTransfer(transfer)}
+                            className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm"
+                          >
+                            Print
+                          </button>
+                          <button
+                            onClick={() => viewTransferDetails(transfer)}
+                            className="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm"
+                          >
+                            Details
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
+      ) : (
+        <div className="text-center py-12 text-green-300">
+          <div className="text-6xl mb-4">💸</div>
+          <h4 className="text-xl font-semibold mb-2">No Transfers Found</h4>
+          <p>You haven't made any money transfers yet.</p>
+          <button
+            onClick={() => {
+              setShowTransfersModal(false);
+              // رفتن به صفحه transfers
+              window.open('/transfers', '_blank');
+            }}
+            className="bg-green-600 hover:bg-green-500 text-white px-6 py-2 rounded-lg mt-4"
+          >
+            Go to Transfers Page
+          </button>
+        </div>
       )}
+    </div>
+  </div>
+)}
 
       <Footer />
     </div>
